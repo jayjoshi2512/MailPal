@@ -4,7 +4,7 @@ import React from 'react'
 
 const LandingPage = () =>{
     return (
-        <div className='h-screen w-full px-[8%]'>
+        <div className='h-screen w-full px-[4%] md:px-[8%]'>
             <LandingNavbar />
             <Landing />
         </div>

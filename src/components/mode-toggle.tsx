@@ -10,15 +10,12 @@ export function ModeToggle() {
     }
 
     return (
-        <Button
-            variant="ghost"
-            size="icon"
+        <button
             onClick={toggleTheme} className='cursor-pointer relative overflow-hidden'>
-            <i className="ri-moon-fill size-6 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90 text-xl"></i>
-            {/* <Moon className="size-6 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" /> */}
-            <i className="ri-sun-fill size-6 absolute scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0 text-xl"></i>
-            {/* <SunMedium className="size-6 absolute scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" /> */}
+
+            <i className={`${theme=="light" ? "ri-moon-fill" : "ri-sun-fill"} text-light  size-6 scale-100 rotate-100 transition-all duration-300 dark:scale-0 dark:-rotate-90 text-xl`}></i>
+
             <span className="sr-only">Toggle theme</span>
-        </Button>
+        </button>
     )
 }
