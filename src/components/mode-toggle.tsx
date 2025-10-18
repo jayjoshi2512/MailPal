@@ -1,4 +1,4 @@
-import { Moon, Sun } from "lucide-react"
+// import { Moon, SunMedium } from "lucide-react"
 import { Button } from "@/components/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
 
@@ -10,12 +10,14 @@ export function ModeToggle() {
     }
 
     return (
-        <Button 
-            variant="icon"
+        <Button
+            variant="ghost"
             size="icon"
-            onClick={toggleTheme} className={undefined}        >
-            <Moon className="h-[1.2rem] w-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-            <Sun className="absolute h-[1.2rem] w-[1.2rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+            onClick={toggleTheme} className='cursor-pointer relative overflow-hidden'>
+            <i className="ri-moon-fill size-6 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90 text-xl"></i>
+            {/* <Moon className="size-6 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" /> */}
+            <i className="ri-sun-fill size-6 absolute scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0 text-xl"></i>
+            {/* <SunMedium className="size-6 absolute scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" /> */}
             <span className="sr-only">Toggle theme</span>
         </Button>
     )

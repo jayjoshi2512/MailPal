@@ -1,12 +1,12 @@
 import { ModeToggle } from '@/components/mode-toggle.tsx';
 import React from 'react'
+import LandingPage from './pages/LandingPage';
 
-const App = () =>{
+const App = () => {
     return (
-        <div>
-            <div className="text-9xl font-bold">App</div>
-            <ModeToggle />
-        </div>
+            <div>
+                <LandingPage />
+            </div>
     )
 }
 

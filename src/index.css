@@ -2,12 +2,12 @@
 @import "tw-animate-css";
 
 /* --------------------------------------------
-    Custom variant for dark mode
+   Custom variant for dark mode
 --------------------------------------------- */
 @custom-variant dark (&:is(.dark *));
 
 /* --------------------------------------------
-    Theme tokens (colors, radii, and font)
+   Theme tokens (colors, radii, and fonts)
 --------------------------------------------- */
 @theme inline {
     --radius-sm: calc(var(--radius) - 4px);
@@ -15,6 +15,7 @@
     --radius-lg: var(--radius);
     --radius-xl: calc(var(--radius) + 4px);
 
+    /* Colors */
     --color-background: var(--background);
     --color-foreground: var(--foreground);
     --color-card: var(--card);
@@ -47,12 +48,13 @@
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
 
-    /* 🆕 Add font token */
-    --font-sans: "Gafiya", ui-sans-serif, system-ui, sans-serif;
+    /* 🆕 Fonts */
+    --font-gafiya: "Gafiya", ui-sans-serif, system-ui, sans-serif;
+    --font-maorin: "Maorin", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* --------------------------------------------
-    Custom font-face definitions
+   Font-face definitions
 --------------------------------------------- */
 @font-face {
     font-family: "Gafiya";
@@ -62,8 +64,16 @@
     font-display: swap;
 }
 
+@font-face {
+    font-family: "Maorin";
+    src: url("/Fonts/maorin/Maorin.otf") format("opentype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
 /* --------------------------------------------
-    Light mode colors (default)
+   Light mode (default)
 --------------------------------------------- */
 :root {
     --radius: 0.625rem;
@@ -101,7 +111,7 @@
 }
 
 /* --------------------------------------------
-    Dark mode override
+   Dark mode overrides
 --------------------------------------------- */
 .dark {
     --background: oklch(0% 0 0);
@@ -138,7 +148,7 @@
 }
 
 /* --------------------------------------------
-    Base layer utilities
+   Base layer
 --------------------------------------------- */
 @layer base {
     * {
@@ -147,6 +157,15 @@
 
     body {
         @apply bg-background text-foreground;
-        font-family: var(--font-sans);
+        /* font-family: var(--font-gafiya); */
+    }
+
+    /* Tailwind font utilities */
+    .font-gafiya {
+        font-family: var(--font-gafiya);
+    }
+
+    .font-maorin {
+        font-family: var(--font-maorin);
     }
 }
