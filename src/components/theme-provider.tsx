@@ -24,12 +24,18 @@ export function ThemeProvider({
     defaultTheme = "light",
     ...props
 }: ThemeProviderProps) {
-    const [theme, setTheme] = useState<Theme>(defaultTheme)
+    const [theme, setTheme] = useState<Theme>(() => {
+        // Get theme from localStorage or use default
+        const storedTheme = localStorage.getItem("theme") as Theme
+        return storedTheme || defaultTheme
+    })
 
     useEffect(() => {
         const root = window.document.documentElement
         root.classList.remove("light", "dark")
         root.classList.add(theme)
+        // Save theme to localStorage
+        localStorage.setItem("theme", theme)
     }, [theme])
 
     const value = {
