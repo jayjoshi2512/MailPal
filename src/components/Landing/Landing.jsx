@@ -1,9 +1,12 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import RotatingText from './RotatingText';
 import CardSwap, { Card } from './CardSwap'
 
 const Landing = () => {
+    const navigate = useNavigate();
+
     return (
         <div className="h-[100vh] flex justify-center flex-col-reverse md:flex-row md:items-center md:justify-between overflow-hidden">
             {/* <HeroNavbar /> */}
@@ -24,7 +27,10 @@ const Landing = () => {
                         rotationInterval={4000}
                     /></div>
                 <p className='hidden md:block'>Lorem ipsum dolor, sit amet consectetur adipisicing elit. Sunt facere magni odio est sint maiores, quod suscipit maxime atque deserunt accusamus a dignissimos fugiat enim?</p>
-                <Button className="mt-6 w-full md:w-max bg-blue-700 hover:bg-blue-600 text-white text-2xl font-bold py-6 px-6 rounded-lg font-maorin cursor-pointer">
+                <Button 
+                    onClick={() => navigate('/connect')}
+                    className="mt-6 w-full md:w-max bg-blue-700 hover:bg-blue-600 text-white text-2xl font-bold py-6 px-6 rounded-lg font-maorin cursor-pointer"
+                >
                     Get Started
                 </Button>
             </div>

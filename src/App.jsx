@@ -1,12 +1,15 @@
-import { ModeToggle } from '@/components/mode-toggle.tsx';
-import React from 'react'
-import LandingPage from './pages/LandingPage';
+import React from 'react';
+import { BrowserRouter } from 'react-router-dom';
+import Routes from '@/routes/Routes';
+import { AuthProvider } from '@/context/AuthContext';
 
 const App = () => {
     return (
-            <div>
-                <LandingPage />
-            </div>
+        <BrowserRouter>
+            <AuthProvider>
+                <Routes />
+            </AuthProvider>
+        </BrowserRouter>
     )
 }
 
