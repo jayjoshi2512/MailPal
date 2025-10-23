@@ -2,13 +2,16 @@ import { google } from 'googleapis';
 import { query } from '../config/database.js';
 import config from '../config/index.js';
 import logger from '../config/logger.js';
+import { getValidOAuth2Client } from '../controllers/authController.js';
 
 /**
  * Email Service - Handles sending emails via Gmail API
+ * Uses automatic token refresh - users never need to reconnect!
  */
 
 /**
- * Create OAuth2 client with user's tokens
+ * DEPRECATED: Old method - keeping for backward compatibility
+ * Use getValidOAuth2Client() instead which handles auto-refresh
  */
 const createOAuth2Client = (refreshToken, accessToken = null) => {
     const oauth2Client = new google.auth.OAuth2(
@@ -26,7 +29,7 @@ const createOAuth2Client = (refreshToken, accessToken = null) => {
 };
 
 /**
- * Create email message in RFC 2822 format with attachments support
+ * Create email message in RFC 2822 format with attachments
  */
 const createMessage = async (to, subject, body, from = 'me', attachments = []) => {
     const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -44,14 +47,15 @@ const createMessage = async (to, subject, body, from = 'me', attachments = []) =
         headers.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
         headers.push('');
 
-        // Add text body part
-        const parts = [
-            `--${boundary}`,
+        const parts = [`--${boundary}`];
+
+        // Add body as first part
+        parts.push(
             'Content-Type: text/plain; charset="UTF-8"',
             'Content-Transfer-Encoding: 7bit',
             '',
-            body,
-        ];
+            body
+        );
 
         // Add each attachment
         for (const attachment of attachments) {
@@ -106,16 +110,17 @@ const createMessage = async (to, subject, body, from = 'me', attachments = []) =
 
         return encodedMessage;
     } else {
-        // Simple text message without attachments
-        const message = [
+        // Simple message without attachments
+        const parts = [
             ...headers,
             'Content-Type: text/plain; charset="UTF-8"',
+            'Content-Transfer-Encoding: 7bit',
             '',
-            body,
+            body
         ].join('\n');
 
         // Encode message in base64url format
-        const encodedMessage = Buffer.from(message)
+        const encodedMessage = Buffer.from(parts)
             .toString('base64')
             .replace(/\+/g, '-')
             .replace(/\//g, '_')
@@ -163,13 +168,13 @@ const replaceVariables = (template, variables) => {
 };
 
 /**
- * Send a single email
+ * Send a single email with automatic token refresh
  */
 export const sendEmail = async (userId, to, subject, body, campaignId = null, contactId = null, attachments = []) => {
     try {
-        // Get user's tokens from database
+        // Get user's email from database
         const userResult = await query(
-            'SELECT refresh_token, access_token, email FROM users WHERE id = $1',
+            'SELECT email FROM users WHERE id = $1',
             [userId]
         );
 
@@ -177,10 +182,10 @@ export const sendEmail = async (userId, to, subject, body, campaignId = null, co
             throw new Error('User not found');
         }
 
-        const { refresh_token, access_token, email: userEmail } = userResult.rows[0];
+        const { email: userEmail } = userResult.rows[0];
 
-        // Create OAuth2 client
-        const oauth2Client = createOAuth2Client(refresh_token, access_token);
+        // Get valid OAuth2 client (auto-refreshes token if needed)
+        const oauth2Client = await getValidOAuth2Client(userId);
         const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
         // Create email message with attachments
@@ -204,16 +209,20 @@ export const sendEmail = async (userId, to, subject, body, campaignId = null, co
         if (campaignId && contactId) {
             await query(
                 `INSERT INTO sent_emails 
-         (campaign_id, contact_id, user_id, gmail_message_id, subject, body, sent_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+         (campaign_id, contact_id, user_id, gmail_message_id, subject, body, sent_at, status)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), 'sent')`,
                 [campaignId, contactId, userId, response.data.id, subject, body]
             );
+
+            logger.info(`Tracked email in database - Campaign: ${campaignId}, Contact: ${contactId}`);
 
             // Update contact status
             await query(
                 `UPDATE contacts SET status = 'sent', updated_at = NOW() WHERE id = $1`,
                 [contactId]
             );
+        } else {
+            logger.warn('Email sent but not tracked - missing campaignId or contactId');
         }
 
         return {
@@ -323,12 +332,12 @@ export const sendCampaignEmails = async (campaignId, userId) => {
 };
 
 /**
- * Test email connection
+ * Test email connection with automatic token refresh
  */
 export const testEmailConnection = async (userId) => {
     try {
         const userResult = await query(
-            'SELECT refresh_token, access_token, email FROM users WHERE id = $1',
+            'SELECT email FROM users WHERE id = $1',
             [userId]
         );
 
@@ -336,9 +345,8 @@ export const testEmailConnection = async (userId) => {
             throw new Error('User not found');
         }
 
-        const { refresh_token, access_token } = userResult.rows[0];
-
-        const oauth2Client = createOAuth2Client(refresh_token, access_token);
+        // Get valid OAuth2 client (auto-refreshes token if needed)
+        const oauth2Client = await getValidOAuth2Client(userId);
         const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
         // Test by getting user profile

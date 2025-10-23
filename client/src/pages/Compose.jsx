@@ -11,6 +11,9 @@ import Sidebar from '@/components/Sidebar';
 import EmailRecipients from '@/components/Compose/EmailRecipients';
 import AttachmentsList from '@/components/Compose/AttachmentsList';
 import ComposeActions from '@/components/Compose/ComposeActions';
+import DiscardModal from '@/components/Compose/DiscardModal';
+import ContactsSidebar from '@/components/Compose/ContactsSidebar';
+import RichTextEditor from '@/components/Compose/RichTextEditor';
 import { useEmailRecipients, useAttachments } from '@/components/Compose/useComposeForm';
 import { formatFileSize } from '@/components/Compose/emailUtils';
 import { uploadAPI, emailAPI } from '@/services/api';
@@ -24,7 +27,7 @@ import { uploadAPI, emailAPI } from '@/services/api';
  * - Better error handling
  * - Auto-save draft (TODO)
  */
-const Compose = () => {
+const ComposeEnhanced = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const fileInputRef = useRef(null);
@@ -58,6 +61,7 @@ const Compose = () => {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState({});
     const [uploadedFiles, setUploadedFiles] = useState([]); // Store uploaded file metadata with server paths
+    const [showDiscardModal, setShowDiscardModal] = useState(false);
 
     // Check if form has content (for enabling send button)
     const hasContent = toEmails.length > 0 && subject.trim().length > 0 && body.trim().length > 0;
@@ -172,14 +176,17 @@ const Compose = () => {
 
     // Discard draft
     const handleDiscard = useCallback(() => {
-        if (window.confirm('Are you sure you want to discard this draft?')) {
-            clearRecipients();
-            setSubject('');
-            setBody('');
-            clearAttachments();
-            setUploadedFiles([]);
-            toast.info('Draft discarded');
-        }
+        setShowDiscardModal(true);
+    }, []);
+
+    const confirmDiscard = useCallback(() => {
+        clearRecipients();
+        setSubject('');
+        setBody('');
+        clearAttachments();
+        setUploadedFiles([]);
+        setShowDiscardModal(false);
+        toast.info('Draft discarded');
     }, [clearRecipients, clearAttachments, toast]);
 
     // Send email with comprehensive error handling
@@ -258,46 +265,66 @@ const Compose = () => {
         }
     }, [toEmails, subject, body, uploadedFiles, isUploading, clearRecipients, clearAttachments, navigate]);
 
+    // Handle contact selection from sidebar
+    const handleContactSelect = useCallback((contact) => {
+        // Add email to the "to" field if not already added
+        if (!toEmails.includes(contact.email)) {
+            addEmail(contact.email);
+            toast.success(`Added ${contact.name || contact.email} to recipients`);
+        } else {
+            toast.info('Contact already added');
+        }
+    }, [toEmails, addEmail]);
+
+    // Handle contact removal from sidebar - dynamically remove from recipients
+    const handleContactRemove = useCallback((email) => {
+        if (toEmails.includes(email)) {
+            removeEmail(email);
+            toast.info(`Removed ${email} from recipients`);
+        }
+    }, [toEmails, removeEmail]);
+
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen bg-background flex">
             <Navbar onLogout={handleLogout} />
             <Sidebar />
             
-            <main className="ml-64 mt-16 p-8">
-                <div className="max-w-5xl mx-auto">
-                    {/* Header */}
-                    <div className="flex items-center justify-between mb-8">
+            {/* Main content with proper spacing for fixed sidebar */}
+            <main className="ml-64 mt-16 p-4 flex-1 mr-80">
+                <div className="max-w-3xl mx-auto">
+                    {/* Header - More compact */}
+                    <div className="flex items-center justify-between mb-4">
                         <div>
-                            <h1 className="text-3xl font-bold text-foreground">
+                            <h1 className="text-xl font-bold text-foreground font-maorin">
                                 Compose Email
                             </h1>
-                            <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
-                                <i className="ri-information-line"></i>
-                                Create and send professional emails with attachments
+                            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                                <i className="ri-information-line text-xs"></i>
+                                Create and send professional emails
                             </p>
                         </div>
                         {/* Status indicator */}
                         {(isSending || isUploading) && (
-                            <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                                <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
-                                <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                                    {isUploading ? 'Uploading files...' : 'Sending email...'}
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse"></div>
+                                <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
+                                    {isUploading ? 'Uploading...' : 'Sending...'}
                                 </span>
                             </div>
                         )}
                     </div>
 
-                    <Card className="shadow-lg border-border/50">
-                        <CardHeader className="border-b border-border/50 bg-muted/20">
-                            <CardTitle className="text-xl flex items-center gap-2">
+                    <Card className="shadow-sm border-border/60">
+                        <CardHeader className="border-b border-border/50 bg-muted/10 py-3 px-4">
+                            <CardTitle className="text-base flex items-center gap-2 font-maorin">
                                 <i className="ri-mail-send-line text-blue-600"></i>
                                 New Message
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-6 p-6">
-                            {/* From (Read-only) */}
+                        <CardContent className="space-y-3 p-4">
+                            {/* From (Read-only) - More compact */}
                             <div>
-                                <label className="text-sm font-semibold mb-2 block">
+                                <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                                     From
                                 </label>
                                 <Input
@@ -305,7 +332,7 @@ const Compose = () => {
                                     value={user?.email || ''}
                                     readOnly
                                     disabled
-                                    className="bg-muted/50 cursor-not-allowed border-border/40"
+                                    className="bg-muted/30 cursor-not-allowed border-border/40 text-xs h-8"
                                 />
                             </div>
 
@@ -322,10 +349,10 @@ const Compose = () => {
                                 onSelectSuggestion={selectSuggestion}
                             />
 
-                            {/* Subject with character counter */}
+                            {/* Subject with character counter - More compact */}
                             <div>
-                                <div className="flex items-center justify-between mb-2">
-                                    <label className="text-sm font-semibold">
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="text-xs font-semibold text-muted-foreground">
                                         Subject
                                     </label>
                                     <span className={`text-xs font-medium ${
@@ -339,31 +366,52 @@ const Compose = () => {
                                     onChange={(e) => setSubject(e.target.value)}
                                     placeholder="Enter email subject..."
                                     maxLength={150}
-                                    className="text-base border-border/60 focus:border-blue-500 transition-colors"
+                                    className="text-xs h-8 border-border/60 focus:border-blue-500 transition-colors"
                                 />
                             </div>
 
-                            {/* Message Body */}
+                            {/* Message Body with rich text editor - More compact */}
                             <div>
-                                <label className="text-sm font-semibold mb-2 block">
-                                    Message
-                                </label>
-                                <Textarea
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="text-xs font-semibold text-muted-foreground">
+                                        Message
+                                    </label>
+                                    <span className={`text-xs font-medium ${
+                                        body.length > 5000 ? 'text-red-600' : 
+                                        body.length > 4000 ? 'text-orange-600' : 
+                                        'text-muted-foreground'
+                                    }`}>
+                                        {body.length.toLocaleString()} chars
+                                    </span>
+                                </div>
+                                <RichTextEditor
                                     value={body}
-                                    onChange={(e) => setBody(e.target.value)}
+                                    onChange={setBody}
                                     placeholder="Type your message here..."
-                                    rows={12}
-                                    className="text-base resize-none border-border/60 focus:border-blue-500 transition-colors"
+                                    className="border-border/60 focus-within:border-blue-500 transition-colors"
                                 />
+                                {body.length > 5000 && (
+                                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                                        <i className="ri-alert-line text-xs"></i>
+                                        Email too long. Keep it concise.
+                                    </p>
+                                )}
                             </div>
 
-                            {/* Attachments */}
-                            <AttachmentsList
-                                attachments={attachments}
-                                onRemoveAttachment={handleRemoveAttachment}
-                                formatFileSize={formatFileSize}
-                                uploadProgress={uploadProgress}
-                            />
+                            {/* Attachments - More compact */}
+                            {attachments.length > 0 && (
+                                <div className="pt-2 border-t border-border/50">
+                                    <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+                                        Attachments ({attachments.length})
+                                    </label>
+                                    <AttachmentsList
+                                        attachments={attachments}
+                                        onRemoveAttachment={handleRemoveAttachment}
+                                        formatFileSize={formatFileSize}
+                                        uploadProgress={uploadProgress}
+                                    />
+                                </div>
+                            )}
 
                             {/* Hidden file input */}
                             <input
@@ -375,21 +423,36 @@ const Compose = () => {
                                 accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
                             />
 
-                            {/* Actions */}
-                            <ComposeActions
-                                onSend={handleSendEmail}
-                                onAttach={handleAttachClick}
-                                onDiscard={handleDiscard}
-                                isSending={isSending}
-                                isUploading={isUploading}
-                                hasContent={hasContent}
-                            />
+                            {/* Actions - More compact */}
+                            <div className="pt-2 border-t border-border/50">
+                                <ComposeActions
+                                    onSend={handleSendEmail}
+                                    onAttach={handleAttachClick}
+                                    onDiscard={handleDiscard}
+                                    isSending={isSending}
+                                    isUploading={isUploading}
+                                    hasContent={hasContent}
+                                />
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
             </main>
+
+            {/* Contacts Sidebar with dynamic removal */}
+            <ContactsSidebar 
+                onContactSelect={handleContactSelect}
+                onContactRemove={handleContactRemove}
+            />
+
+            {/* Discard Confirmation Modal */}
+            <DiscardModal
+                isOpen={showDiscardModal}
+                onClose={() => setShowDiscardModal(false)}
+                onConfirm={confirmDiscard}
+            />
         </div>
     );
 };
 
-export default Compose;
+export default ComposeEnhanced;

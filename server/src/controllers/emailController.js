@@ -1,5 +1,66 @@
 import emailService from '../services/emailService.js';
 import logger from '../config/logger.js';
+import { query } from '../config/database.js';
+
+/**
+ * Get or create default "Manual Emails" campaign for compose page emails
+ */
+const getOrCreateManualCampaign = async (userId) => {
+  try {
+    // Check if manual campaign exists
+    let result = await query(
+      `SELECT id FROM campaigns WHERE user_id = $1 AND name = 'Manual Emails' LIMIT 1`,
+      [userId]
+    );
+
+    if (result.rows.length > 0) {
+      return result.rows[0].id;
+    }
+
+    // Create manual campaign
+    result = await query(
+      `INSERT INTO campaigns (user_id, name, status, created_at, updated_at) 
+       VALUES ($1, 'Manual Emails', 'active', NOW(), NOW()) 
+       RETURNING id`,
+      [userId]
+    );
+
+    return result.rows[0].id;
+  } catch (error) {
+    logger.error('Error getting/creating manual campaign:', error);
+    return null;
+  }
+};
+
+/**
+ * Get or create contact for email recipient
+ */
+const getOrCreateContact = async (userId, email, name = null) => {
+  try {
+    // Check if contact exists
+    let result = await query(
+      `SELECT id FROM contacts WHERE user_id = $1 AND email = $2 LIMIT 1`,
+      [userId, email]
+    );
+
+    if (result.rows.length > 0) {
+      return result.rows[0].id;
+    }
+
+    // Create contact
+    result = await query(
+      `INSERT INTO contacts (user_id, email, name, status, created_at, updated_at) 
+       VALUES ($1, $2, $3, 'active', NOW(), NOW()) 
+       RETURNING id`,
+      [userId, email, name || email.split('@')[0]]
+    );
+
+    return result.rows[0].id;
+  } catch (error) {
+    logger.error('Error getting/creating contact:', error);
+    return null;
+  }
+};
 
 /**
  * Send a test email
@@ -9,14 +70,29 @@ export const sendTestEmail = async (req, res) => {
     const userId = req.user.id;
     const { to, subject, body, attachments = [] } = req.body;
 
+    // Get or create manual campaign for tracking
+    const campaignId = await getOrCreateManualCampaign(userId);
+
     // Support multiple recipients
     const recipients = Array.isArray(to) ? to : [to];
     
-    // Send to all recipients with attachments
+    // Send to all recipients with attachments and tracking
     const results = await Promise.allSettled(
-      recipients.map(recipient => 
-        emailService.sendEmail(userId, recipient, subject, body, null, null, attachments)
-      )
+      recipients.map(async (recipient) => {
+        // Get or create contact for this recipient
+        const contactId = await getOrCreateContact(userId, recipient);
+        
+        // Send email with campaign and contact tracking
+        return emailService.sendEmail(
+          userId, 
+          recipient, 
+          subject, 
+          body, 
+          campaignId, 
+          contactId, 
+          attachments
+        );
+      })
     );
 
     const successful = results.filter(r => r.status === 'fulfilled').length;

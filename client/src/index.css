@@ -56,13 +56,6 @@
 /* --------------------------------------------
    Font-face definitions
 --------------------------------------------- */
-@font-face {
-    font-family: "Gafiya";
-    src: url("/Fonts/gafiya/Gafiya-Regular.otf") format("opentype");
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
-}
 
 @font-face {
     font-family: "Maorin";
@@ -161,9 +154,6 @@
     }
 
     /* Tailwind font utilities */
-    .font-gafiya {
-        font-family: var(--font-gafiya);
-    }
 
     .font-maorin {
         font-family: var(--font-maorin);

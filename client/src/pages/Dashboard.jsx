@@ -1,101 +1,143 @@
-import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
+import { dashboardAPI } from '@/services/api';
+import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
+import DashboardHeader from '@/components/Dashboard/DashboardHeader';
+import StatCard from '@/components/Dashboard/StatCard';
+import RecentActivityTable from '@/components/Dashboard/RecentActivityTable';
+import DashboardSkeleton from '@/components/Dashboard/DashboardSkeleton';
 
 const Dashboard = () => {
-    const navigate = useNavigate();
     const { user, logout } = useAuth();
+    const navigate = useNavigate();
+    const [loading, setLoading] = useState(true);
+    const [stats, setStats] = useState(null);
+    const [responseRate, setResponseRate] = useState(null);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        fetchDashboardData();
+    }, []);
+
+    const fetchDashboardData = async (silent = false) => {
+        try {
+            if (!silent) {
+                setLoading(true);
+                setError(null);
+            }
+            const [statsResponse, rateResponse] = await Promise.all([
+                dashboardAPI.getStats(),
+                dashboardAPI.getResponseRate()
+            ]);
+            if (statsResponse?.success) {
+                setStats(statsResponse.data);
+            } else {
+                throw new Error('Failed to fetch dashboard statistics');
+            }
+            if (rateResponse?.success) {
+                setResponseRate(rateResponse.data);
+            }
+        } catch (error) {
+            console.error('Dashboard fetch error:', error);
+            if (!silent) {
+                setError(error.message || 'Failed to load dashboard data');
+                toast.error('Failed to load dashboard data');
+            }
+        } finally {
+            if (!silent) {
+                setLoading(false);
+            }
+        }
+    };
 
     const handleLogout = () => {
         logout();
         navigate('/', { replace: true });
     };
 
+    if (loading) {
+        return (
+            <div className="h-screen overflow-hidden bg-background">
+                <Navbar onLogout={handleLogout} />
+                <Sidebar />
+                <main className="ml-64 mt-16 h-[calc(100vh-4rem)] overflow-y-auto">
+                    <div className="p-4">
+                        <DashboardSkeleton />
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="h-screen overflow-hidden bg-background">
+                <Navbar onLogout={handleLogout} />
+                <Sidebar />
+                <main className="ml-64 mt-16 h-[calc(100vh-4rem)] overflow-y-auto">
+                    <div className="p-4">
+                        <div className="flex items-center justify-center h-96">
+                            <div className="text-center">
+                                <i className="ri-error-warning-line text-5xl text-red-500 mb-3"></i>
+                                <p className="text-base font-semibold mb-1">Failed to load dashboard</p>
+                                <p className="text-sm text-muted-foreground mb-3">{error}</p>
+                                <button onClick={fetchDashboardData} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">Retry</button>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
+    const emailStats = stats?.emailStats || {};
+    // const campaignStats = stats?.campaignStats || {};
+    const recentActivity = stats?.recentActivity || [];
+    // const emailTrends = stats?.emailTrends || [];
+    // const campaignPerformance = stats?.campaignPerformance || [];
+
     return (
-        <div className="min-h-screen bg-background">
+        <div className="h-screen overflow-hidden bg-background">
             <Navbar onLogout={handleLogout} />
             <Sidebar />
+            <main className="ml-64 mt-16 h-[calc(100vh-4rem)] overflow-y-auto">
+                <div className="p-4">
+                    <div className="max-w-6xl mx-auto space-y-4">
+                        {/* Header */}
+                        <DashboardHeader userName={user?.name} />
 
-            <main className="ml-64 pt-24 px-8 py-8">
-                <div className="max-w-5xl">
-                    <div className="mb-8">
-                        <h2 className="text-4xl font-bold font-maorin mb-2">
-                            Welcome back, {user?.name?.split(' ')[0] || 'User'}!
-                        </h2>
-                        <p className="text-muted-foreground">
-                            Your Google account ({user?.email}) is connected. Start creating email campaigns!
-                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <StatCard 
+                                title="Total Emails Sent" 
+                                value={emailStats.totalSent} 
+                                subtitle={<span><span className="text-green-600 font-semibold">+{emailStats.sentThisWeek || 0}</span> this week</span>} 
+                                icon="ri-mail-send-line" 
+                                iconColor="text-blue-600" 
+                            />
+                            <StatCard 
+                                title="Response Rate" 
+                                value={`${responseRate?.responseRate || 0}%`} 
+                                subtitle={`${responseRate?.totalClicks || 0} total clicks`} 
+                                icon="ri-bar-chart-line" 
+                                iconColor="text-purple-600" 
+                            />
+                            <StatCard 
+                                title="Sent Today" 
+                                value={emailStats.sentToday} 
+                                subtitle="Keep up the momentum!" 
+                                icon="ri-calendar-check-line" 
+                                iconColor="text-orange-600" 
+                            />
+                        </div>
+                        {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <EmailTrendsChart data={emailTrends} />
+                            <CampaignPerformanceChart data={campaignPerformance} />
+                        </div> */}
+                        <RecentActivityTable data={recentActivity} />
                     </div>
-
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
-                        {/* Stats Cards */}
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-medium text-muted-foreground">
-                                    Total Campaigns
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-3xl font-bold">0</div>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    Create your first campaign
-                                </p>
-                            </CardContent>
-                        </Card>
-
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-medium text-muted-foreground">
-                                    Emails Sent
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-3xl font-bold">0</div>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    Start reaching out
-                                </p>
-                            </CardContent>
-                        </Card>
-
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-medium text-muted-foreground">
-                                    Response Rate
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-3xl font-bold">0%</div>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    No data yet
-                                </p>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* Quick Actions */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-xl">Quick Actions</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            <Button className="w-full justify-start" size="lg">
-                                <i className="ri-add-line mr-2 text-lg"></i>
-                                Create New Campaign
-                            </Button>
-                            <Button variant="outline" className="w-full justify-start" size="lg">
-                                <i className="ri-contacts-line mr-2 text-lg"></i>
-                                Manage Contacts
-                            </Button>
-                            <Button variant="outline" className="w-full justify-start" size="lg">
-                                <i className="ri-mail-line mr-2 text-lg"></i>
-                                Email Templates
-                            </Button>
-                        </CardContent>
-                    </Card>
                 </div>
             </main>
         </div>

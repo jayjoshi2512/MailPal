@@ -44,9 +44,14 @@ apiClient.interceptors.response.use(
 export const authAPI = {
     /**
      * Get Google OAuth URL
+     * Sends isReturningUser flag to determine if consent is needed
      */
     getGoogleAuthUrl: async () => {
-        return apiClient.get('/auth/google');
+        // Check if user has JWT token (means they've connected before)
+        const token = localStorage.getItem('token');
+        const isReturningUser = !!token;
+        
+        return apiClient.get(`/auth/google?isReturningUser=${isReturningUser}`);
     },
     
     /**
@@ -164,6 +169,48 @@ export const contactsAPI = {
 };
 
 // ========================================
+// GENERAL CONTACTS API (User's contact list)
+// ========================================
+
+export const generalContactsAPI = {
+    /**
+     * Get all contacts for the authenticated user
+     */
+    getAll: async (search = '') => {
+        const params = search ? { search } : {};
+        return apiClient.get('/contacts', { params });
+    },
+    
+    /**
+     * Create a single contact
+     */
+    create: async (contactData) => {
+        return apiClient.post('/contacts', contactData);
+    },
+    
+    /**
+     * Upload contacts from CSV
+     */
+    uploadCSV: async (csvData) => {
+        return apiClient.post('/contacts/upload-csv', { csvData });
+    },
+    
+    /**
+     * Update contact
+     */
+    update: async (contactId, contactData) => {
+        return apiClient.put(`/contacts/${contactId}`, contactData);
+    },
+    
+    /**
+     * Delete contact
+     */
+    delete: async (contactId) => {
+        return apiClient.delete(`/contacts/${contactId}`);
+    },
+};
+
+// ========================================
 // UPLOAD API
 // ========================================
 
@@ -209,6 +256,26 @@ export const uploadAPI = {
 };
 
 // ========================================
+// DASHBOARD API
+// ========================================
+
+export const dashboardAPI = {
+    /**
+     * Get comprehensive dashboard statistics
+     */
+    getStats: async () => {
+        return apiClient.get('/dashboard/stats');
+    },
+
+    /**
+     * Get response rate
+     */
+    getResponseRate: async () => {
+        return apiClient.get('/dashboard/response-rate');
+    },
+};
+
+// ========================================
 // EMAIL API
 // ========================================
 
@@ -237,8 +304,10 @@ export const healthCheck = async () => {
 
 export default {
     auth: authAPI,
+    dashboard: dashboardAPI,
     campaigns: campaignsAPI,
     contacts: contactsAPI,
+    generalContacts: generalContactsAPI,
     upload: uploadAPI,
     email: emailAPI,
     healthCheck,

@@ -48,13 +48,9 @@ const ConnectGoogle = () => {
         }
     };
 
-    // Show loading while checking authentication
+    // Don't show anything while checking authentication (instant redirect)
     if (isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-background">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            </div>
-        );
+        return null;
     }
 
     return (

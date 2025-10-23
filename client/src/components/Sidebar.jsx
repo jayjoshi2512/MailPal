@@ -12,79 +12,79 @@ const Sidebar = () => {
     const isActive = (path) => location.pathname === path;
 
     return (
-        <div className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 border-r border-border/50 bg-background p-6 flex flex-col">
-            {/* Profile Picture */}
+        <div className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 border-r border-border/50 bg-background p-4 flex flex-col">
+            {/* Profile Picture - Compact */}
             {user && (
-                <div className="flex flex-col items-center mb-4">
+                <div className="flex flex-col items-center mb-3">
                     <Avatar
                         src={user.profile_picture}
                         alt={user.name}
                         name={user.name}
-                        size="xl"
+                        size="lg"
                     />
-                    <p className="mt-2 text-sm font-medium text-foreground">{user.name}</p>
+                    <p className="mt-1.5 text-xs font-medium text-foreground">{user.name}</p>
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                 </div>
             )}
 
-            <Separator className="my-4" />
+            <Separator className="my-3" />
 
-            {/* Top Navigation */}
-            <nav className="flex-1 space-y-2">
+            {/* Top Navigation - Compact */}
+            <nav className="flex-1 space-y-1">
                 {/* Dashboard */}
                 <button 
                     onClick={() => navigate('/dashboard')}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left rounded-lg transition-colors ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm rounded-md transition-colors ${
                         isActive('/dashboard') 
                             ? 'bg-muted text-foreground font-medium' 
                             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     }`}
                 >
-                    <i className="ri-dashboard-line text-lg"></i>
+                    <i className="ri-dashboard-line text-base"></i>
                     <span>Dashboard</span>
                 </button>
 
                 {/* Compose */}
                 <button 
                     onClick={() => navigate('/compose')}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left rounded-lg transition-colors ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm rounded-md transition-colors ${
                         isActive('/compose') 
                             ? 'bg-muted text-foreground font-medium' 
                             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     }`}
                 >
-                    <i className="ri-mail-send-line text-lg"></i>
+                    <i className="ri-mail-send-line text-base"></i>
                     <span>Compose</span>
                 </button>
             </nav>
 
-            {/* Bottom Section */}
-            <div className="mt-auto space-y-2">
-                <Separator className="mb-4" />
+            {/* Bottom Section - Compact */}
+            <div className="mt-auto space-y-1">
+                <Separator className="mb-3" />
                 
                 {/* Settings */}
                 <button 
                     onClick={() => navigate('/settings')}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left rounded-lg transition-colors ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm rounded-md transition-colors ${
                         isActive('/settings') 
                             ? 'bg-muted text-foreground font-medium' 
                             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     }`}
                 >
-                    <i className="ri-settings-line text-lg"></i>
+                    <i className="ri-settings-line text-base"></i>
                     <span>Settings</span>
                 </button>
 
                 {/* Profile */}
                 <button 
                     onClick={() => navigate('/profile')}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left rounded-lg transition-colors ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm rounded-md transition-colors ${
                         isActive('/profile') 
                             ? 'bg-muted text-foreground font-medium' 
                             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     }`}
                 >
-                    <i className="ri-user-line text-lg"></i>
+                    <i className="ri-user-line text-base"></i>
                     <span>Profile</span>
                 </button>
             </div>
