@@ -14,16 +14,17 @@ const ComposeActions = ({
     hasContent = true  // Default to true so button is enabled by default
 }) => {
     return (
-        <div className="sticky bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border pt-4 mt-6">
+        <div className="px-4 py-3 bg-background">
             <div className="flex items-center justify-between">
                 {/* Left side - Secondary actions */}
                 <div className="flex items-center gap-2">
                     <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         onClick={onAttach}
                         disabled={isSending || isUploading}
+                        className="text-muted-foreground hover:text-foreground"
                     >
                         {isUploading ? (
                             <>
@@ -44,7 +45,7 @@ const ComposeActions = ({
                         size="sm"
                         onClick={onDiscard}
                         disabled={isSending || isUploading}
-                        className="text-muted-foreground"
+                        className="text-muted-foreground hover:text-red-600"
                     >
                         <i className="ri-delete-bin-line mr-2"></i>
                         Discard

@@ -292,118 +292,83 @@ const ComposeEnhanced = () => {
             {/* Main content with proper spacing for fixed sidebar */}
             <main className="ml-64 mt-16 p-4 flex-1 mr-80">
                 <div className="max-w-3xl mx-auto">
-                    {/* Header - More compact */}
-                    <div className="flex items-center justify-between mb-4">
-                        <div>
-                            <h1 className="text-xl font-bold text-foreground font-maorin">
-                                Compose Email
-                            </h1>
-                            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                                <i className="ri-information-line text-xs"></i>
-                                Create and send professional emails
-                            </p>
-                        </div>
-                        {/* Status indicator */}
-                        {(isSending || isUploading) && (
+                    {/* Status indicator - only show when needed */}
+                    {(isSending || isUploading) && (
+                        <div className="flex items-center justify-end mb-3">
                             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
                                 <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse"></div>
                                 <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
                                     {isUploading ? 'Uploading...' : 'Sending...'}
                                 </span>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
 
                     <Card className="shadow-sm border-border/60">
-                        <CardHeader className="border-b border-border/50 bg-muted/10 py-3 px-4">
-                            <CardTitle className="text-base flex items-center gap-2 font-maorin">
-                                <i className="ri-mail-send-line text-blue-600"></i>
-                                New Message
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3 p-4">
-                            {/* From (Read-only) - More compact */}
-                            <div>
-                                <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-                                    From
-                                </label>
+                        <CardContent className="p-0">
+                            {/* From (Read-only) - No label, compact */}
+                            <div className="px-4 pt-4">
                                 <Input
                                     type="email"
                                     value={user?.email || ''}
                                     readOnly
                                     disabled
-                                    className="bg-muted/30 cursor-not-allowed border-border/40 text-xs h-8"
+                                    className="bg-muted/30 cursor-not-allowed border-0 text-sm h-9 shadow-none"
+                                    placeholder="From"
                                 />
                             </div>
 
-                            {/* Recipients */}
-                            <EmailRecipients
-                                to={to}
-                                toEmails={toEmails}
-                                suggestions={suggestions}
-                                showSuggestions={showSuggestions}
-                                onToChange={handleToChange}
-                                onAddEmail={addEmail}
-                                onRemoveEmail={removeEmail}
-                                onToKeyDown={handleToKeyDown}
-                                onSelectSuggestion={selectSuggestion}
-                            />
+                            {/* Separator */}
+                            <div className="border-t border-border/50 my-1"></div>
 
-                            {/* Subject with character counter - More compact */}
-                            <div>
-                                <div className="flex items-center justify-between mb-1">
-                                    <label className="text-xs font-semibold text-muted-foreground">
-                                        Subject
-                                    </label>
-                                    <span className={`text-xs font-medium ${
-                                        subject.length > 100 ? 'text-orange-600' : 'text-muted-foreground'
-                                    }`}>
-                                        {subject.length} / 150
-                                    </span>
-                                </div>
+                            {/* Recipients - No label */}
+                            <div className="px-4">
+                                <EmailRecipients
+                                    to={to}
+                                    toEmails={toEmails}
+                                    suggestions={suggestions}
+                                    showSuggestions={showSuggestions}
+                                    onToChange={handleToChange}
+                                    onAddEmail={addEmail}
+                                    onRemoveEmail={removeEmail}
+                                    onToKeyDown={handleToKeyDown}
+                                    onSelectSuggestion={selectSuggestion}
+                                />
+                            </div>
+
+                            {/* Separator */}
+                            <div className="border-t border-border/50 my-1"></div>
+
+                            {/* Subject - No label, no counter */}
+                            <div className="px-4">
                                 <Input
                                     value={subject}
                                     onChange={(e) => setSubject(e.target.value)}
-                                    placeholder="Enter email subject..."
+                                    placeholder="Subject"
                                     maxLength={150}
-                                    className="text-xs h-8 border-border/60 focus:border-blue-500 transition-colors"
+                                    className="text-sm h-9 border-0 shadow-none focus-visible:ring-0"
                                 />
                             </div>
 
-                            {/* Message Body with rich text editor - More compact */}
-                            <div>
-                                <div className="flex items-center justify-between mb-1">
-                                    <label className="text-xs font-semibold text-muted-foreground">
-                                        Message
-                                    </label>
-                                    <span className={`text-xs font-medium ${
-                                        body.length > 5000 ? 'text-red-600' : 
-                                        body.length > 4000 ? 'text-orange-600' : 
-                                        'text-muted-foreground'
-                                    }`}>
-                                        {body.length.toLocaleString()} chars
-                                    </span>
-                                </div>
+                            {/* Separator */}
+                            <div className="border-t border-border/50 my-1"></div>
+
+                            {/* Message Body - No label, no counter */}
+                            <div className="px-4 pb-4">
                                 <RichTextEditor
                                     value={body}
                                     onChange={setBody}
-                                    placeholder="Type your message here..."
-                                    className="border-border/60 focus-within:border-blue-500 transition-colors"
+                                    placeholder="Compose your message..."
+                                    className="border-0 shadow-none min-h-[300px]"
                                 />
-                                {body.length > 5000 && (
-                                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                                        <i className="ri-alert-line text-xs"></i>
-                                        Email too long. Keep it concise.
-                                    </p>
-                                )}
                             </div>
 
                             {/* Attachments - More compact */}
                             {attachments.length > 0 && (
-                                <div className="pt-2 border-t border-border/50">
-                                    <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+                                <div className="px-4 pb-4 border-t border-border/50">
+                                    <div className="text-xs font-semibold text-muted-foreground mb-2 mt-3">
                                         Attachments ({attachments.length})
-                                    </label>
+                                    </div>
                                     <AttachmentsList
                                         attachments={attachments}
                                         onRemoveAttachment={handleRemoveAttachment}
@@ -423,8 +388,8 @@ const ComposeEnhanced = () => {
                                 accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
                             />
 
-                            {/* Actions - More compact */}
-                            <div className="pt-2 border-t border-border/50">
+                            {/* Actions */}
+                            <div className={attachments.length === 0 ? "border-t border-border/50" : ""}>
                                 <ComposeActions
                                     onSend={handleSendEmail}
                                     onAttach={handleAttachClick}

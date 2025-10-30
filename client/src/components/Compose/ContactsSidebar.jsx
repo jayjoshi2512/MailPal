@@ -200,11 +200,16 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
 
     // Handle select all
     const handleSelectAll = () => {
-        if (selectedContacts.size === filteredAndSortedContacts.length) {
-            // Deselect all
+        if (selectedContacts.size === filteredAndSortedContacts.length && filteredAndSortedContacts.length > 0) {
+            // Deselect all - remove from recipients
+            filteredAndSortedContacts.forEach(contact => {
+                if (onContactRemove) {
+                    onContactRemove(contact.email);
+                }
+            });
             setSelectedContacts(new Set());
         } else {
-            // Select all filtered contacts
+            // Select all filtered contacts - add to recipients
             filteredAndSortedContacts.forEach(contact => {
                 if (onContactSelect) {
                     onContactSelect(contact);
@@ -213,6 +218,25 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
             const allIds = new Set(filteredAndSortedContacts.map(c => c.id));
             setSelectedContacts(allIds);
         }
+    };
+
+    // Toggle individual contact selection
+    const toggleContactSelection = (contact) => {
+        const newSelected = new Set(selectedContacts);
+        if (newSelected.has(contact.id)) {
+            // Deselect
+            newSelected.delete(contact.id);
+            if (onContactRemove) {
+                onContactRemove(contact.email);
+            }
+        } else {
+            // Select
+            newSelected.add(contact.id);
+            if (onContactSelect) {
+                onContactSelect(contact);
+            }
+        }
+        setSelectedContacts(newSelected);
     };
 
     // Show skeleton loader
@@ -311,47 +335,61 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
                     </div>
                 ) : (
                     <div className="grid grid-cols-4 gap-3">
-                        {filteredAndSortedContacts.map((contact) => (
-                            <div
-                                key={contact.id}
-                                className="relative group"
-                            >
-                                {/* Delete Button */}
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteContact(contact.id);
-                                    }}
-                                    className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg"
-                                    title="Delete contact"
-                                >
-                                    <i className="ri-delete-bin-line text-xs"></i>
-                                </button>
-
-                                {/* Contact Card */}
+                        {filteredAndSortedContacts.map((contact) => {
+                            const isSelected = selectedContacts.has(contact.id);
+                            return (
                                 <div
-                                    onClick={() => onContactSelect(contact)}
-                                    className="flex flex-col items-center gap-1.5 p-2 rounded-lg hover:bg-accent cursor-pointer transition-all"
-                                    title={contact.email}
+                                    key={contact.id}
+                                    className="relative group"
                                 >
-                                    {/* Avatar */}
-                                    <div
-                                        className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-base shadow-md group-hover:scale-105 transition-transform ${getAvatarColor(
-                                            contact.email
-                                        )}`}
+                                    {/* Delete Button */}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteContact(contact.id);
+                                        }}
+                                        className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg"
+                                        title="Delete contact"
                                     >
-                                        {getInitials(contact)}
-                                    </div>
-                                    
-                                    {/* Name/Email */}
-                                    <div className="text-center w-full px-1">
-                                        <p className="text-[10px] font-medium truncate leading-tight">
-                                            {contact.name || contact.email.split('@')[0]}
-                                        </p>
+                                        <i className="ri-delete-bin-line text-xs"></i>
+                                    </button>
+
+                                    {/* Contact Card */}
+                                    <div
+                                        onClick={() => toggleContactSelection(contact)}
+                                        className={`flex flex-col items-center gap-1.5 p-2 rounded-lg cursor-pointer transition-all ${
+                                            isSelected 
+                                                ? 'bg-blue-100 dark:bg-blue-900/30 ring-2 ring-blue-500' 
+                                                : 'hover:bg-accent'
+                                        }`}
+                                        title={contact.email}
+                                    >
+                                        {/* Selected indicator */}
+                                        {isSelected && (
+                                            <div className="absolute top-1 left-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                                                <i className="ri-check-line text-white text-xs"></i>
+                                            </div>
+                                        )}
+
+                                        {/* Avatar */}
+                                        <div
+                                            className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-base shadow-md group-hover:scale-105 transition-transform ${getAvatarColor(
+                                                contact.email
+                                            )}`}
+                                        >
+                                            {getInitials(contact)}
+                                        </div>
+                                        
+                                        {/* Name/Email */}
+                                        <div className="text-center w-full px-1">
+                                            <p className="text-[10px] font-medium truncate leading-tight">
+                                                {contact.name || contact.email.split('@')[0]}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

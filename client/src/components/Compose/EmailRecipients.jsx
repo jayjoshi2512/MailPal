@@ -18,10 +18,7 @@ const EmailRecipients = ({
 }) => {
     return (
         <div className="relative">
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                To
-            </label>
-            <div className="flex flex-wrap gap-2 p-2 border rounded-md focus-within:ring-2 focus-within:ring-ring min-h-[42px] bg-background">
+            <div className="flex flex-wrap gap-2 p-2 border-0 rounded-md min-h-[42px] bg-background">
                 {toEmails.map((email, index) => (
                     <Badge 
                         key={index} 
@@ -46,7 +43,7 @@ const EmailRecipients = ({
                     onBlur={() => {
                         if (to.trim()) onAddEmail(to);
                     }}
-                    placeholder={toEmails.length === 0 ? "Add recipients..." : ""}
+                    placeholder={toEmails.length === 0 ? "To" : ""}
                     className="flex-1 outline-none bg-transparent min-w-[200px] px-2"
                 />
             </div>
