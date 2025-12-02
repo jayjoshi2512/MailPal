@@ -9,11 +9,10 @@ export const getCampaigns = async (req, res) => {
     const { status, limit = 50, offset = 0 } = req.query;
 
     let queryText = `
-      SELECT c.*, 
-             COUNT(DISTINCT co.id) as total_contacts,
-             COUNT(DISTINCT se.id) as total_sent
+      SELECT 
+        c.*,
+        COUNT(DISTINCT se.id) as total_sent
       FROM campaigns c
-      LEFT JOIN contacts co ON c.id = co.campaign_id
       LEFT JOIN sent_emails se ON c.id = se.campaign_id
       WHERE c.user_id = $1
     `;
@@ -59,15 +58,10 @@ export const getCampaignById = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
 
+    console.log(`[getCampaignById] Campaign ID: ${id}, User ID: ${userId}`);
+
     const result = await query(
-      `SELECT c.*, 
-              COUNT(DISTINCT co.id) as total_contacts,
-              COUNT(DISTINCT se.id) as total_sent
-       FROM campaigns c
-       LEFT JOIN contacts co ON c.id = co.campaign_id
-       LEFT JOIN sent_emails se ON c.id = se.campaign_id
-       WHERE c.id = $1 AND c.user_id = $2
-       GROUP BY c.id`,
+      `SELECT * FROM campaigns WHERE id = $1 AND user_id = $2`,
       [id, userId]
     );
 
@@ -78,9 +72,26 @@ export const getCampaignById = async (req, res) => {
       });
     }
 
+    const campaign = result.rows[0];
+    console.log(`[getCampaignById] Campaign status: ${campaign.status}`);
+    
+    // Always fetch sent emails for campaign, not just when completed
+    const sentResult = await query(
+      `SELECT id, recipient_email, recipient_name, subject, sent_at 
+       FROM sent_emails 
+       WHERE campaign_id = $1 AND user_id = $2
+       ORDER BY sent_at DESC`,
+      [id, userId]
+    );
+    const sentEmails = sentResult.rows;
+    console.log(`[getCampaignById] Sent emails found: ${sentEmails.length}`, sentEmails);
+
     res.json({
       success: true,
-      data: { campaign: result.rows[0] },
+      data: { 
+        campaign,
+        sentEmails 
+      },
     });
   } catch (error) {
     console.error('Get campaign error:', error);
@@ -101,28 +112,18 @@ export const createCampaign = async (req, res) => {
       name,
       subject,
       body,
-      daily_limit = 50,
-      delay_min = 5,
-      delay_max = 15,
-      track_opens = true,
-      track_clicks = true,
     } = req.body;
 
     const result = await query(
       `INSERT INTO campaigns 
-       (user_id, name, subject, body, daily_limit, delay_min, delay_max, track_opens, track_clicks)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       (user_id, name, subject, body)
+       VALUES ($1, $2, $3, $4)
        RETURNING *`,
       [
         userId,
         name,
         subject,
         body,
-        daily_limit,
-        delay_min,
-        delay_max,
-        track_opens,
-        track_clicks,
       ]
     );
 

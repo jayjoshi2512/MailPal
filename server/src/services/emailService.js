@@ -170,7 +170,7 @@ const replaceVariables = (template, variables) => {
 /**
  * Send a single email with automatic token refresh
  */
-export const sendEmail = async (userId, to, subject, body, campaignId = null, contactId = null, attachments = []) => {
+export const sendEmail = async (userId, to, subject, body, campaignId = null, contactId = null, attachments = [], recipientName = null) => {
     try {
         // Get user's email from database
         const userResult = await query(
@@ -205,24 +205,22 @@ export const sendEmail = async (userId, to, subject, body, campaignId = null, co
             campaignId,
         });
 
-        // Track sent email in database
-        if (campaignId && contactId) {
-            await query(
-                `INSERT INTO sent_emails 
-         (campaign_id, contact_id, user_id, gmail_message_id, subject, body, sent_at, status)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW(), 'sent')`,
-                [campaignId, contactId, userId, response.data.id, subject, body]
-            );
+        // Track sent email in database - always save with recipient info
+        await query(
+            `INSERT INTO sent_emails 
+             (campaign_id, contact_id, user_id, gmail_message_id, subject, body, recipient_email, recipient_name, sent_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+            [campaignId, contactId, userId, response.data.id, subject, body, to, recipientName || to.split('@')[0]]
+        );
 
-            logger.info(`Tracked email in database - Campaign: ${campaignId}, Contact: ${contactId}`);
+        logger.info(`Tracked email in database - Campaign: ${campaignId}, Recipient: ${to}`);
 
-            // Update contact status
+        // Update contact status if contact exists
+        if (contactId) {
             await query(
                 `UPDATE contacts SET status = 'sent', updated_at = NOW() WHERE id = $1`,
                 [contactId]
             );
-        } else {
-            logger.warn('Email sent but not tracked - missing campaignId or contactId');
         }
 
         return {
@@ -234,7 +232,7 @@ export const sendEmail = async (userId, to, subject, body, campaignId = null, co
         logger.error('Error sending email:', error);
 
         // Log failed email
-        if (campaignId && contactId) {
+        if (contactId) {
             await query(
                 `UPDATE contacts SET status = 'failed', updated_at = NOW() WHERE id = $1`,
                 [contactId]

@@ -68,10 +68,10 @@ const getOrCreateContact = async (userId, email, name = null) => {
 export const sendTestEmail = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { to, subject, body, attachments = [] } = req.body;
+    const { to, subject, body, attachments = [], campaignId = null, recipientName = null } = req.body;
 
-    // Get or create manual campaign for tracking
-    const campaignId = await getOrCreateManualCampaign(userId);
+    // If campaignId is provided, use it; otherwise get or create manual campaign
+    const effectiveCampaignId = campaignId || await getOrCreateManualCampaign(userId);
 
     // Support multiple recipients
     const recipients = Array.isArray(to) ? to : [to];
@@ -88,9 +88,10 @@ export const sendTestEmail = async (req, res) => {
           recipient, 
           subject, 
           body, 
-          campaignId, 
+          effectiveCampaignId, 
           contactId, 
-          attachments
+          attachments,
+          recipientName
         );
       })
     );

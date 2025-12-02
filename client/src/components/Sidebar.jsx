@@ -44,6 +44,19 @@ const Sidebar = () => {
                     <span>Dashboard</span>
                 </button>
 
+                {/* Campaigns */}
+                <button 
+                    onClick={() => navigate('/campaigns')}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm rounded-md transition-colors ${
+                        location.pathname.startsWith('/campaigns')
+                            ? 'bg-muted text-foreground font-medium' 
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
+                >
+                    <i className="ri-megaphone-line text-base"></i>
+                    <span>Campaigns</span>
+                </button>
+
                 {/* Compose */}
                 <button 
                     onClick={() => navigate('/compose')}
@@ -62,6 +75,19 @@ const Sidebar = () => {
             <div className="mt-auto space-y-1">
                 <Separator className="mb-3" />
                 
+                {/* How to Use */}
+                <button 
+                    onClick={() => navigate('/how-to-use')}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm rounded-md transition-colors ${
+                        isActive('/how-to-use') 
+                            ? 'bg-muted text-foreground font-medium' 
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
+                >
+                    <i className="ri-question-line text-base"></i>
+                    <span>How to Use</span>
+                </button>
+
                 {/* Settings */}
                 <button 
                     onClick={() => navigate('/settings')}

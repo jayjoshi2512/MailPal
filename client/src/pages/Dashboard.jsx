@@ -94,10 +94,12 @@ const Dashboard = () => {
     }
 
     const emailStats = stats?.emailStats || {};
-    // const campaignStats = stats?.campaignStats || {};
     const recentActivity = stats?.recentActivity || [];
-    // const emailTrends = stats?.emailTrends || [];
-    // const campaignPerformance = stats?.campaignPerformance || [];
+    
+    // Gmail API actual limit: 500/day for regular Gmail, 2000/day for Google Workspace
+    const DAILY_LIMIT = 500;
+    const emailsSentToday = emailStats.sentToday || parseInt(localStorage.getItem('emails_sent_today') || '0');
+    const dailyUsagePercent = Math.round((emailsSentToday / DAILY_LIMIT) * 100);
 
     return (
         <div className="h-screen overflow-hidden bg-background">
@@ -109,33 +111,37 @@ const Dashboard = () => {
                         {/* Header */}
                         <DashboardHeader userName={user?.name} />
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {/* Usage Stats Row */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <StatCard 
-                                title="Total Emails Sent" 
-                                value={emailStats.totalSent} 
+                                title="Daily Usage" 
+                                value={`${emailsSentToday}/${DAILY_LIMIT}`} 
+                                subtitle={<span className={dailyUsagePercent >= 80 ? 'text-red-600' : 'text-green-600'}>{dailyUsagePercent}% used</span>} 
+                                icon="ri-24-hours-line" 
+                                iconColor="text-blue-600" 
+                            />
+                            <StatCard 
+                                title="Remaining Today" 
+                                value={DAILY_LIMIT - emailsSentToday} 
+                                subtitle="emails available" 
+                                icon="ri-inbox-line" 
+                                iconColor="text-green-600" 
+                            />
+                            <StatCard 
+                                title="Total Sent" 
+                                value={emailStats.totalSent || 0} 
                                 subtitle={<span><span className="text-green-600 font-semibold">+{emailStats.sentThisWeek || 0}</span> this week</span>} 
                                 icon="ri-mail-send-line" 
-                                iconColor="text-blue-600" 
+                                iconColor="text-purple-600" 
                             />
                             <StatCard 
                                 title="Response Rate" 
                                 value={`${responseRate?.responseRate || 0}%`} 
-                                subtitle={`${responseRate?.totalClicks || 0} total clicks`} 
+                                subtitle={`${responseRate?.totalClicks || 0} clicks`} 
                                 icon="ri-bar-chart-line" 
-                                iconColor="text-purple-600" 
-                            />
-                            <StatCard 
-                                title="Sent Today" 
-                                value={emailStats.sentToday} 
-                                subtitle="Keep up the momentum!" 
-                                icon="ri-calendar-check-line" 
                                 iconColor="text-orange-600" 
                             />
                         </div>
-                        {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <EmailTrendsChart data={emailTrends} />
-                            <CampaignPerformanceChart data={campaignPerformance} />
-                        </div> */}
                         <RecentActivityTable data={recentActivity} />
                     </div>
                 </div>

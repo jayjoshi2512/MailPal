@@ -289,6 +289,19 @@ export const emailAPI = {
 };
 
 // ========================================
+// AI API
+// ========================================
+
+export const aiAPI = {
+    /**
+     * Generate email template using AI
+     */
+    generateTemplate: async (prompt, tone, variables) => {
+        return apiClient.post('/ai/generate-template', { prompt, tone, variables });
+    },
+};
+
+// ========================================
 // HEALTH CHECK
 // ========================================
 
@@ -310,5 +323,6 @@ export default {
     generalContacts: generalContactsAPI,
     upload: uploadAPI,
     email: emailAPI,
+    ai: aiAPI,
     healthCheck,
 };

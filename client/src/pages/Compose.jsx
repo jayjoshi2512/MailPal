@@ -289,9 +289,9 @@ const ComposeEnhanced = () => {
             <Navbar onLogout={handleLogout} />
             <Sidebar />
             
-            {/* Main content with proper spacing for fixed sidebar */}
-            <main className="ml-64 mt-16 p-4 flex-1 mr-80">
-                <div className="max-w-3xl mx-auto">
+            {/* Main content - centered between left sidebar (64) and right sidebar (72) */}
+            <main className="ml-64 mr-72 mt-16 p-4 flex-1">
+                <div className="max-w-2xl mx-auto">
                     {/* Status indicator - only show when needed */}
                     {(isSending || isUploading) && (
                         <div className="flex items-center justify-end mb-3">
@@ -365,10 +365,7 @@ const ComposeEnhanced = () => {
 
                             {/* Attachments - More compact */}
                             {attachments.length > 0 && (
-                                <div className="px-4 pb-4 border-t border-border/50">
-                                    <div className="text-xs font-semibold text-muted-foreground mb-2 mt-3">
-                                        Attachments ({attachments.length})
-                                    </div>
+                                <div className="px-4 py-3 border-t border-border/50">
                                     <AttachmentsList
                                         attachments={attachments}
                                         onRemoveAttachment={handleRemoveAttachment}

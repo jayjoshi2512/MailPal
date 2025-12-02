@@ -55,11 +55,10 @@ async function getEmailStatistics(userId) {
         const result = await query(
             `SELECT 
                 COUNT(*) as total_sent,
-                COUNT(CASE WHEN se.sent_at >= CURRENT_TIMESTAMP - INTERVAL '7 days' THEN 1 END) as sent_this_week,
-                COUNT(CASE WHEN se.sent_at >= CURRENT_DATE THEN 1 END) as sent_today
-             FROM sent_emails se
-             JOIN campaigns c ON se.campaign_id = c.id
-             WHERE c.user_id = $1 AND se.sent_at IS NOT NULL`,
+                COUNT(CASE WHEN sent_at >= CURRENT_TIMESTAMP - INTERVAL '7 days' THEN 1 END) as sent_this_week,
+                COUNT(CASE WHEN sent_at >= CURRENT_DATE THEN 1 END) as sent_today
+             FROM sent_emails
+             WHERE user_id = $1 AND sent_at IS NOT NULL`,
             [userId]
         );
 
@@ -137,14 +136,13 @@ async function getRecentActivity(userId) {
             `SELECT 
                 se.id,
                 se.subject,
-                ct.email as email_to,
+                se.recipient_email as email_to,
+                se.recipient_name,
                 se.sent_at,
-                se.status,
                 c.name as campaign_name
              FROM sent_emails se
-             JOIN campaigns c ON se.campaign_id = c.id
-             JOIN contacts ct ON se.contact_id = ct.id
-             WHERE c.user_id = $1 AND se.sent_at IS NOT NULL
+             LEFT JOIN campaigns c ON se.campaign_id = c.id
+             WHERE se.user_id = $1 AND se.sent_at IS NOT NULL
              ORDER BY se.sent_at DESC
              LIMIT 10`,
             [userId]
@@ -159,9 +157,10 @@ async function getRecentActivity(userId) {
             subject: row.subject || 'No Subject',
             emailTo: row.email_to,
             recipient: row.email_to,
+            recipientName: row.recipient_name,
             sentAt: row.sent_at,
-            status: row.status || 'sent',
-            campaignName: row.campaign_name
+            status: 'sent',
+            campaignName: row.campaign_name || 'Manual Email'
         }));
     } catch (error) {
         logger.error('Error fetching recent activity:', error);

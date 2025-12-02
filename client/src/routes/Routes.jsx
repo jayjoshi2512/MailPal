@@ -7,6 +7,10 @@ import Dashboard from '@/pages/Dashboard';
 import Compose from '@/pages/Compose';
 import Settings from '@/pages/Settings';
 import Profile from '@/pages/Profile';
+import Campaigns from '@/pages/Campaigns';
+import NewCampaign from '@/pages/NewCampaign';
+import CampaignDetail from '@/pages/CampaignDetail';
+import HowToUse from '@/pages/HowToUse';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 /**
@@ -40,6 +44,34 @@ const Routes = () => {
                 } 
             />
 
+            {/* Campaign Routes */}
+            <Route 
+                path="/campaigns" 
+                element={
+                    <ProtectedRoute>
+                        <Campaigns />
+                    </ProtectedRoute>
+                } 
+            />
+            
+            <Route 
+                path="/campaigns/new" 
+                element={
+                    <ProtectedRoute>
+                        <NewCampaign />
+                    </ProtectedRoute>
+                } 
+            />
+            
+            <Route 
+                path="/campaigns/:id" 
+                element={
+                    <ProtectedRoute>
+                        <CampaignDetail />
+                    </ProtectedRoute>
+                } 
+            />
+
             <Route 
                 path="/settings" 
                 element={
@@ -54,6 +86,15 @@ const Routes = () => {
                 element={
                     <ProtectedRoute>
                         <Profile />
+                    </ProtectedRoute>
+                } 
+            />
+
+            <Route 
+                path="/how-to-use" 
+                element={
+                    <ProtectedRoute>
+                        <HowToUse />
                     </ProtectedRoute>
                 } 
             />

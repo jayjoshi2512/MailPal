@@ -15,96 +15,121 @@ const getFileIcon = (type) => {
 };
 
 /**
+ * Get file extension from filename or type
+ */
+const getFileExtension = (file) => {
+    const nameExt = file.name.split('.').pop()?.toLowerCase() || '';
+    return nameExt;
+};
+
+/**
+ * Group attachments by file extension with stats
+ */
+const groupByExtension = (attachments) => {
+    const groups = {};
+    attachments.forEach((file, index) => {
+        const ext = getFileExtension(file);
+        if (!groups[ext]) {
+            groups[ext] = { files: [], totalSize: 0 };
+        }
+        groups[ext].files.push({ file, originalIndex: index });
+        groups[ext].totalSize += file.size;
+    });
+    // Sort extensions alphabetically
+    const sortedKeys = Object.keys(groups).sort();
+    return sortedKeys.map(ext => ({ 
+        ext, 
+        files: groups[ext].files, 
+        totalSize: groups[ext].totalSize,
+        count: groups[ext].files.length 
+    }));
+};
+
+/**
  * AttachmentsList - Component for displaying and managing file attachments
- * Production-ready grid layout with polish
+ * Compact layout grouped by extension with headers
  */
 const AttachmentsList = ({ attachments, onRemoveAttachment, formatFileSize, uploadProgress = {} }) => {
     if (attachments.length === 0) return null;
 
     const totalSize = attachments.reduce((sum, file) => sum + file.size, 0);
+    const groupedAttachments = groupByExtension(attachments);
 
     return (
-        <div className="space-y-3">
-            {/* Header with stats */}
+        <div className="space-y-2">
+            {/* Overall Header */}
             <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <i className="ri-attachment-2 text-blue-600"></i>
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <i className="ri-attachment-2 text-blue-600 text-sm"></i>
                     Attachments
-                    <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold rounded-full">
-                        {attachments.length}
-                    </span>
                 </label>
-                <span className="text-xs text-muted-foreground font-medium">
-                    {formatFileSize(totalSize)} total
+                <span className="text-xs text-muted-foreground">
+                    {attachments.length} file{attachments.length > 1 ? 's' : ''} ({formatFileSize(totalSize)})
                 </span>
             </div>
             
-            {/* Grid layout for attachments */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {attachments.map((file, index) => {
-                    const progress = uploadProgress[index];
-                    const isUploading = progress !== undefined && progress < 100;
-                    const isCompleted = progress === 100;
-                    
-                    return (
-                        <div 
-                            key={index}
-                            className="relative group flex items-start gap-3 p-3 bg-background rounded-lg border border-border hover:border-blue-400 hover:shadow-md transition-all duration-200"
-                        >
-                            {/* File Icon */}
-                            <div className="w-12 h-12 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-                                <i className={`${getFileIcon(file.type)} text-2xl text-white`}></i>
-                            </div>
-                            
-                            {/* File Info */}
-                            <div className="min-w-0 flex-1">
-                                <p className="text-sm font-semibold truncate text-foreground pr-8">
-                                    {file.name}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    {formatFileSize(file.size)}
-                                    {file.type && (
-                                        <span className="ml-1.5 px-1.5 py-0.5 bg-muted rounded text-[10px] font-medium uppercase">
-                                            {file.type.split('/')[1]?.slice(0, 4)}
-                                        </span>
-                                    )}
-                                </p>
-                                
-                                {/* Upload Progress */}
-                                {(isUploading || isCompleted) && (
-                                    <div className="mt-2">
-                                        <div className="h-1.5 bg-muted rounded-full overflow-hidden shadow-inner">
-                                            <div
-                                                className={`h-full transition-all duration-300 ease-out ${
-                                                    isCompleted 
-                                                        ? 'bg-green-600' 
-                                                        : 'bg-blue-600'
-                                                }`}
-                                                style={{ width: `${progress}%` }}
-                                            />
-                                        </div>
-                                        <p className={`text-[11px] font-semibold mt-1.5 ${
-                                            isCompleted ? 'text-green-600 dark:text-green-500' : 'text-blue-600 dark:text-blue-400'
-                                        }`}>
-                                            {isCompleted ? '✓ Uploaded' : `Uploading... ${progress}%`}
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-                            
-                            {/* Delete Button */}
-                            <button
-                                type="button"
-                                onClick={() => onRemoveAttachment(index)}
-                                disabled={isUploading}
-                                className="absolute top-2 right-2 w-6 h-6 rounded-lg bg-background/80 backdrop-blur-sm border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/50 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center shadow-sm"
-                                title="Remove attachment"
-                            >
-                                <i className="ri-close-line text-base"></i>
-                            </button>
+            {/* Grouped layout for attachments */}
+            <div className="space-y-2">
+                {groupedAttachments.map((group) => (
+                    <div key={group.ext} className="space-y-1">
+                        {/* Extension Group Header */}
+                        <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                                .{group.ext}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                                {group.count} file{group.count > 1 ? 's' : ''} ({formatFileSize(group.totalSize)})
+                            </span>
                         </div>
-                    );
-                })}
+                        {/* Files in this group */}
+                        <div className="flex flex-wrap gap-1.5">
+                            {group.files.map(({ file, originalIndex }) => {
+                                const progress = uploadProgress[originalIndex];
+                                const isUploading = progress !== undefined && progress < 100;
+                                const isCompleted = progress === 100;
+                                
+                                return (
+                                    <div 
+                                        key={originalIndex}
+                                        className="relative group inline-flex items-center gap-1.5 px-2 py-1 bg-muted/50 rounded-md border border-border hover:border-blue-400 transition-all duration-150"
+                                    >
+                                        {/* File Icon */}
+                                        <i className={`${getFileIcon(file.type)} text-sm text-blue-600`}></i>
+                                        
+                                        {/* File Info */}
+                                        <span className="text-xs font-medium text-foreground max-w-[120px] truncate">
+                                            {file.name}
+                                        </span>
+                                        <span className="text-[10px] text-muted-foreground">
+                                            {formatFileSize(file.size)}
+                                        </span>
+                                        
+                                        {/* Upload Progress Indicator */}
+                                        {isUploading && (
+                                            <span className="text-[10px] text-blue-600 font-medium">
+                                                {progress}%
+                                            </span>
+                                        )}
+                                        {isCompleted && (
+                                            <i className="ri-check-line text-xs text-green-600"></i>
+                                        )}
+                                        
+                                        {/* Delete Button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => onRemoveAttachment(originalIndex)}
+                                            disabled={isUploading}
+                                            className="w-4 h-4 rounded text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center ml-0.5"
+                                            title="Remove"
+                                        >
+                                            <i className="ri-close-line text-sm"></i>
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );

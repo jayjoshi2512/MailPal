@@ -6,6 +6,7 @@ import contactsGeneralRoutes from './contacts.js';
 import emailRoutes from './emailRoutes.js';
 import uploadRoutes from './upload.js';
 import dashboardRoutes from './dashboardRoutes.js';
+import aiRoutes from './aiRoutes.js';
 
 const router = express.Router();
 
@@ -27,5 +28,6 @@ router.use('/campaigns/:campaignId/contacts', contactRoutes);
 router.use('/contacts', contactsGeneralRoutes); // General contacts management
 router.use('/emails', emailRoutes);
 router.use('/upload', uploadRoutes);
+router.use('/ai', aiRoutes);
 
 export default router;
