@@ -76,12 +76,14 @@ export const addContact = async (req, res) => {
       });
     }
 
+    // Add contact with source='campaign' and user_id
     const result = await query(
       `INSERT INTO contacts 
-       (campaign_id, email, first_name, last_name, company, job_title, custom_fields)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (user_id, campaign_id, email, first_name, last_name, company, job_title, custom_fields, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'campaign')
        RETURNING *`,
       [
+        userId,
         campaignId,
         email,
         first_name,
@@ -142,7 +144,7 @@ export const bulkAddContacts = async (req, res) => {
       });
     }
 
-    // Build bulk insert query
+    // Build bulk insert query with source='campaign'
     const values = [];
     const placeholders = [];
     let paramIndex = 1;
@@ -151,10 +153,11 @@ export const bulkAddContacts = async (req, res) => {
       placeholders.push(
         `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${
           paramIndex + 3
-        }, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6})`
+        }, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, 'campaign')`
       );
 
       values.push(
+        userId,
         campaignId,
         contact.email,
         contact.first_name || null,
@@ -164,14 +167,14 @@ export const bulkAddContacts = async (req, res) => {
         contact.custom_fields || {}
       );
 
-      paramIndex += 7;
+      paramIndex += 8;
     });
 
     const result = await query(
       `INSERT INTO contacts 
-       (campaign_id, email, first_name, last_name, company, job_title, custom_fields)
+       (user_id, campaign_id, email, first_name, last_name, company, job_title, custom_fields, source)
        VALUES ${placeholders.join(', ')}
-       ON CONFLICT (campaign_id, email) DO NOTHING
+       ON CONFLICT DO NOTHING
        RETURNING *`,
       values
     );

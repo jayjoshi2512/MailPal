@@ -11,7 +11,7 @@ const RecentActivityTable = ({ data = [] }) => {
             <Card className="border-border/50">
                 <CardHeader className="px-4 py-3">
                     <CardTitle className="text-base font-maorin flex items-center gap-2">
-                        <i className="ri-history-line text-purple-600 text-lg"></i>
+                        <i className="ri-history-line text-cyan-600 text-lg"></i>
                         Recent Email Activity
                     </CardTitle>
                 </CardHeader>
@@ -30,12 +30,12 @@ const RecentActivityTable = ({ data = [] }) => {
         <Card className="border-border/50">
             <CardHeader className="px-4 py-3">
                 <CardTitle className="text-base font-maorin flex items-center gap-2">
-                    <i className="ri-history-line text-purple-600 text-lg"></i>
+                    <i className="ri-history-line text-cyan-600 text-lg"></i>
                     Recent Email Activity
                 </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto scrollbar-hide">
                     <table className="w-full">
                         <thead>
                             <tr className="border-b border-border">

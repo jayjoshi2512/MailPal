@@ -63,6 +63,90 @@ const getOrCreateContact = async (userId, email, name = null) => {
 };
 
 /**
+ * Get compose email history
+ * Returns all emails sent via compose (Manual Emails campaign)
+ */
+export const getComposeHistory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+    const search = req.query.search || '';
+
+    // Build search condition
+    let searchCondition = '';
+    const params = [userId];
+    
+    if (search) {
+      params.push(`%${search}%`);
+      searchCondition = `AND (se.subject ILIKE $2 OR se.recipient_email ILIKE $2 OR se.recipient_name ILIKE $2)`;
+    }
+
+    // Get total count
+    const countResult = await query(
+      `SELECT COUNT(*) as total
+       FROM sent_emails se
+       LEFT JOIN campaigns c ON se.campaign_id = c.id
+       WHERE se.user_id = $1 
+       AND (c.name = 'Manual Emails' OR c.id IS NULL)
+       ${searchCondition}`,
+      params
+    );
+
+    // Get compose emails
+    const result = await query(
+      `SELECT 
+          se.id,
+          se.subject,
+          se.body,
+          se.recipient_email,
+          se.recipient_name,
+          se.sent_at,
+          se.status
+       FROM sent_emails se
+       LEFT JOIN campaigns c ON se.campaign_id = c.id
+       WHERE se.user_id = $1 
+       AND (c.name = 'Manual Emails' OR c.id IS NULL)
+       ${searchCondition}
+       ORDER BY se.sent_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
+    );
+
+    const total = parseInt(countResult.rows[0]?.total) || 0;
+
+    res.json({
+      success: true,
+      data: {
+        emails: result.rows.map(row => ({
+          id: row.id,
+          subject: row.subject || 'No Subject',
+          body: row.body,
+          recipientEmail: row.recipient_email,
+          recipientName: row.recipient_name,
+          sentAt: row.sent_at,
+          status: row.status || 'sent'
+        })),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
+      }
+    });
+  } catch (error) {
+    logger.error('Get compose history error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch compose history',
+      message: error.message
+    });
+  }
+};
+
+/**
  * Send a test email
  */
 export const sendTestEmail = async (req, res) => {
@@ -171,4 +255,5 @@ export default {
   sendTestEmail,
   sendCampaignEmails,
   testConnection,
+  getComposeHistory,
 };

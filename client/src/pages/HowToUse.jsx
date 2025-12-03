@@ -1,10 +1,9 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/components/ui/card';
 import { Button } from '@/components/components/ui/button';
 import { Badge } from '@/components/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/components/ui/tabs';
-import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
 
@@ -12,41 +11,47 @@ import Sidebar from '@/components/Sidebar';
  * How To Use Page - Clean, Professional, Compact Guide
  */
 const HowToUse = () => {
-    const { logout } = useAuth();
     const navigate = useNavigate();
-
-    const handleLogout = useCallback(() => {
-        logout();
-        navigate('/', { replace: true });
-    }, [logout, navigate]);
 
     const guides = {
         'getting-started': {
             title: 'Getting Started',
             icon: 'ri-rocket-line',
             steps: [
-                { title: 'Connect Gmail', desc: 'Click "Connect Google" and sign in. We use secure OAuth - your password stays with Google.' },
-                { title: 'Add Contacts', desc: 'Go to Contacts → Add manually or import CSV file with name and email columns.' },
-                { title: 'Compose & Send', desc: 'Click Compose, select recipients, write your email, and hit Send!' }
+                { title: 'Connect Gmail', desc: 'Click "Get Started" on landing page and sign in with Google. We use secure OAuth.' },
+                { title: 'Add Contacts', desc: 'Go to Compose page. Add contacts manually or import CSV with name and email columns.' },
+                { title: 'Compose & Send', desc: 'Write your email, select recipients from sidebar, and hit Send!' }
             ]
         },
         'campaigns': {
             title: 'Campaigns',
             icon: 'ri-megaphone-line',
             steps: [
-                { title: 'Create Campaign', desc: 'Go to Campaigns → New Campaign. Give it a name and write your email template.' },
-                { title: 'Use Variables', desc: 'Use {{name}}, {{company}} in your email - they get replaced with real data.' },
-                { title: 'Add Recipients', desc: 'Add recipients with their details. Each person receives a personalized email.' },
-                { title: 'Send', desc: 'Click Send Campaign. Emails are sent with delay to avoid spam flags.' }
+                { title: 'Create Campaign', desc: 'Go to Campaigns → New Campaign. Upload CSV/Excel with recipient data.' },
+                { title: 'Use Variables', desc: 'Use {{name}}, {{company}} etc. - they auto-replace with data from your file.' },
+                { title: 'Add Attachments', desc: 'Attach files (max 5, 10MB each) to include in every email.' },
+                { title: 'Launch', desc: 'Click Launch. Emails are sent with delays to avoid spam flags.' }
             ]
         },
-        'ai-templates': {
-            title: 'AI Templates',
-            icon: 'ri-magic-line',
+        'templates': {
+            title: 'Templates',
+            icon: 'ri-file-list-3-line',
             steps: [
-                { title: 'Open AI', desc: 'In Compose page, click the AI button (sparkle icon).' },
-                { title: 'Describe', desc: 'Tell AI what you need: "Write a job inquiry for software developer role"' },
-                { title: 'Generate', desc: 'AI creates a professional template. Edit as needed and send!' }
+                { title: 'Two Types', desc: 'Campaign templates use {{variables}} from CSV. Compose templates are plain text for one-off emails.' },
+                { title: 'Browse & Filter', desc: 'Use the tabs to filter by All, Campaign, or Compose. Search by name, subject, or content.' },
+                { title: 'Create Manually', desc: 'Click "New Template" to build from scratch. Choose Campaign or Compose type.' },
+                { title: 'AI Generation', desc: 'Click "Generate with AI" — Campaign AI uses variables, Compose AI creates plain text.' },
+                { title: 'Use & Copy', desc: 'Copy templates to clipboard or use Campaign templates directly in a new campaign.' }
+            ]
+        },
+        'compose': {
+            title: 'Compose',
+            icon: 'ri-edit-line',
+            steps: [
+                { title: 'Add Contacts', desc: 'Use the contacts sidebar to select recipients. Star ⭐ your favorites!' },
+                { title: 'Write Email', desc: 'Compose subject and body. Use AI to generate professional templates.' },
+                { title: 'Attach Files', desc: 'Click attachment icon to add files. Multiple files supported.' },
+                { title: 'Send', desc: 'Review and click Send. Each recipient gets an individual email.' }
             ]
         },
         'variables': {
@@ -56,21 +61,23 @@ const HowToUse = () => {
                 { title: '{{name}}', desc: 'Recipient\'s name → "Hi {{name}}" becomes "Hi John"' },
                 { title: '{{company}}', desc: 'Company name → "I saw {{company}} is hiring"' },
                 { title: '{{role}}', desc: 'Job title → "As a {{role}} at..."' },
-                { title: '{{email}}', desc: 'Recipient\'s email address' }
+                { title: 'Custom', desc: 'Any column from your CSV can be used as a variable!' }
             ]
         }
     };
 
     const faqs = [
-        { q: 'Is my password safe?', a: 'Yes. We use Google OAuth - we never see your password.' },
-        { q: 'Daily email limit?', a: '500/day for Gmail, 2000/day for Google Workspace.' },
-        { q: 'Can I attach files?', a: 'Yes, use the attachment button in Compose.' },
-        { q: 'Import from Excel?', a: 'Save as CSV with "name" and "email" columns, then import.' }
+        { q: 'Is my data safe?', a: 'Yes. We use Google OAuth - we never see your password. Emails sent via Gmail API.' },
+        { q: 'Daily email limit?', a: '500/day for Gmail, 2000/day for Google Workspace accounts.' },
+        { q: 'Can I attach files?', a: 'Yes! Both Compose and Campaigns support attachments (max 5 files, 10MB each).' },
+        { q: 'Import from Excel?', a: 'Yes! Upload CSV or Excel files with columns like name, email, company etc.' },
+        { q: 'Campaign vs Compose templates?', a: 'Campaign templates use {{variables}} replaced by CSV data. Compose templates are plain text.' },
+        { q: 'What are variables?', a: 'Placeholders like {{name}}, {{company}} that are replaced with actual data from your CSV file.' }
     ];
 
     return (
         <div className="min-h-screen bg-background flex">
-            <Navbar onLogout={handleLogout} />
+            <Navbar />
             <Sidebar />
             
             <main className="ml-64 mt-16 p-6 flex-1">
@@ -89,7 +96,7 @@ const HowToUse = () => {
 
                     {/* Main Content - Tabs */}
                     <Tabs defaultValue="getting-started" className="space-y-3">
-                        <TabsList className="grid grid-cols-4 w-full h-9">
+                        <TabsList className="grid grid-cols-5 w-full h-9">
                             {Object.entries(guides).map(([key, { title, icon }]) => (
                                 <TabsTrigger key={key} value={key} className="text-xs gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                                     <i className={`${icon} text-sm`}></i>
@@ -158,19 +165,50 @@ const HowToUse = () => {
                                 <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8" onClick={() => navigate('/campaigns/new')}>
                                     <i className="ri-add-line mr-2 text-green-500"></i>New Campaign
                                 </Button>
+                                <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8" onClick={() => navigate('/templates')}>
+                                    <i className="ri-file-list-3-line mr-2 text-amber-500"></i>Templates
+                                </Button>
                                 <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8" onClick={() => navigate('/dashboard')}>
-                                    <i className="ri-dashboard-line mr-2 text-purple-500"></i>Dashboard
+                                    <i className="ri-dashboard-line mr-2 text-teal-500"></i>Dashboard
                                 </Button>
                             </CardContent>
                         </Card>
                     </div>
 
-                    {/* Pro Tip - Minimal */}
-                    <div className="mt-3 py-2 px-3 rounded border bg-muted/20 flex items-center gap-2 text-xs">
-                        <i className="ri-lightbulb-line text-amber-500"></i>
-                        <span className="text-muted-foreground">
-                            <span className="font-medium text-foreground">Tip:</span> Use {'{{name}}'} to personalize emails. Gmail allows 500 emails/day.
-                        </span>
+                    {/* Pro Tips */}
+                    <div className="mt-3 py-2 px-3 rounded border bg-muted/20 space-y-1.5 text-xs">
+                        <div className="flex items-center gap-2">
+                            <i className="ri-lightbulb-line text-amber-500"></i>
+                            <span className="text-muted-foreground">
+                                <span className="font-medium text-foreground">Variables:</span> Use {'{{name}}'}, {'{{company}}'} in Campaign templates. These are replaced with data from your CSV.
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <i className="ri-file-list-3-line text-green-500"></i>
+                            <span className="text-muted-foreground">
+                                <span className="font-medium text-foreground">Templates:</span> Campaign templates have variables for bulk emails. Compose templates are plain text for one-off emails.
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <i className="ri-attachment-line text-blue-500"></i>
+                            <span className="text-muted-foreground">
+                                <span className="font-medium text-foreground">Attachments:</span> Add up to 5 files (10MB each) in Campaigns.
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* AI Disclaimer */}
+                    <div className="mt-3 py-2.5 px-3 rounded border border-amber-500/30 bg-amber-500/5 text-xs">
+                        <div className="flex items-start gap-2">
+                            <i className="ri-error-warning-line text-amber-500 mt-0.5"></i>
+                            <div>
+                                <span className="font-medium text-amber-600 dark:text-amber-400">AI Generation Disclaimer:</span>
+                                <span className="text-muted-foreground ml-1">
+                                    We use a free-tier AI model to generate email templates. The generated content may not always be accurate or perfectly suited for your needs. 
+                                    <strong className="text-foreground"> Always review and edit AI-generated content before sending.</strong>
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </main>

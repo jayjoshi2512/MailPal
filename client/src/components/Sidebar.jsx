@@ -69,6 +69,19 @@ const Sidebar = () => {
                     <i className="ri-mail-send-line text-base"></i>
                     <span>Compose</span>
                 </button>
+
+                {/* Templates */}
+                <button 
+                    onClick={() => navigate('/templates')}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm rounded-md transition-colors ${
+                        isActive('/templates') 
+                            ? 'bg-muted text-foreground font-medium' 
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
+                >
+                    <i className="ri-file-list-3-line text-base"></i>
+                    <span>Templates</span>
+                </button>
             </nav>
 
             {/* Bottom Section - Compact */}

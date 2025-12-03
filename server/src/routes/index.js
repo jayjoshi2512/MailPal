@@ -7,6 +7,8 @@ import emailRoutes from './emailRoutes.js';
 import uploadRoutes from './upload.js';
 import dashboardRoutes from './dashboardRoutes.js';
 import aiRoutes from './aiRoutes.js';
+import templateRoutes from './templates.js';
+import adminRoutes from './adminRoutes.js';
 
 const router = express.Router();
 
@@ -22,10 +24,12 @@ router.get('/health', (req, res) => {
 
 // API routes
 router.use('/auth', authRoutes);
+router.use('/admin', adminRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/campaigns', campaignRoutes);
 router.use('/campaigns/:campaignId/contacts', contactRoutes);
 router.use('/contacts', contactsGeneralRoutes); // General contacts management
+router.use('/templates', templateRoutes);
 router.use('/emails', emailRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/ai', aiRoutes);

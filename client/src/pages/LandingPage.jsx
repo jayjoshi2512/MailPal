@@ -21,9 +21,11 @@ const LandingPage = () => {
     }
 
     return (
-        <div className='h-screen w-full px-[4%] md:px-[8%]'>
-            <Navbar showConnectButton={true} />
-            <Landing />
+        <div className='min-h-screen w-full'>
+            <Navbar />
+            <div className="pt-16 px-[4%] md:px-[8%]">
+                <Landing />
+            </div>
         </div>
     );
 };

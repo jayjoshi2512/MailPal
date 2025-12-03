@@ -328,7 +328,7 @@ const RichTextEditor = ({ value, onChange, placeholder, className }) => {
                     ref={editorRef}
                     contentEditable
                     onInput={handleInput}
-                    className="rich-text-editor min-h-[200px] max-h-[350px] overflow-y-auto p-2.5 outline-none text-sm leading-relaxed focus:bg-background"
+                    className="rich-text-editor min-h-[200px] max-h-[350px] overflow-y-auto scrollbar-hide p-2.5 outline-none text-sm leading-relaxed focus:bg-background"
                     style={{
                         wordWrap: 'break-word',
                         overflowWrap: 'break-word',

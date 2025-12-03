@@ -181,7 +181,7 @@ const CampaignDetail = () => {
 
     if (loading) return (
         <div className="min-h-screen bg-background flex">
-            <Navbar onLogout={handleLogout} /><Sidebar />
+            <Navbar /><Sidebar />
             <main className="ml-64 mt-16 p-6 flex-1">
                 <div className="animate-pulse space-y-4"><div className="h-8 bg-muted rounded w-1/3"></div><div className="h-64 bg-muted rounded"></div></div>
             </main>
@@ -190,7 +190,7 @@ const CampaignDetail = () => {
 
     if (!campaign) return (
         <div className="min-h-screen bg-background flex">
-            <Navbar onLogout={handleLogout} /><Sidebar />
+            <Navbar /><Sidebar />
             <main className="ml-64 mt-16 p-6 flex-1 flex items-center justify-center">
                 <div className="text-center">
                     <i className="ri-error-warning-line text-4xl text-muted-foreground mb-2"></i>
@@ -203,7 +203,7 @@ const CampaignDetail = () => {
 
     return (
         <div className="min-h-screen bg-background flex">
-            <Navbar onLogout={handleLogout} />
+            <Navbar />
             <Sidebar />
             
             <main className="ml-64 mt-16 p-6 flex-1">
@@ -252,7 +252,7 @@ const CampaignDetail = () => {
                             <CardContent>
                                 <div className="bg-muted/40 rounded-lg p-4 space-y-3">
                                     <div><span className="text-xs text-muted-foreground">Subject</span><p className="font-medium text-sm">{campaign.subject}</p></div>
-                                    <div className="border-t pt-3"><span className="text-xs text-muted-foreground">Body</span><div className="text-sm whitespace-pre-wrap mt-1 max-h-[250px] overflow-y-auto">{campaign.body}</div></div>
+                                    <div className="border-t pt-3"><span className="text-xs text-muted-foreground">Body</span><div className="text-sm whitespace-pre-wrap mt-1 max-h-[250px] overflow-y-auto scrollbar-hide">{campaign.body}</div></div>
                                 </div>
                                 {variables.length > 0 && (
                                     <div className="mt-3 flex flex-wrap gap-1">
@@ -284,7 +284,7 @@ const CampaignDetail = () => {
                                     ) : (
                                         <div className="space-y-2">
                                             <Input placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="h-8 text-xs" />
-                                            <div className="max-h-[280px] overflow-y-auto space-y-1">
+                                            <div className="max-h-[280px] overflow-y-auto scrollbar-hide space-y-1">
                                                 {sentEmails.filter(e => e.recipient_email?.toLowerCase().includes(searchQuery.toLowerCase())).map((email, i) => (
                                                     <div key={i} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 text-xs">
                                                         <div className="w-6 h-6 rounded-full bg-green-600 text-white flex items-center justify-center text-[10px] font-medium shrink-0">
@@ -311,7 +311,7 @@ const CampaignDetail = () => {
                                 ) : (
                                     <div className="space-y-2">
                                         <Input placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="h-8 text-xs" />
-                                        <div className="max-h-[280px] overflow-y-auto space-y-1">
+                                        <div className="max-h-[280px] overflow-y-auto scrollbar-hide space-y-1">
                                             {filteredRecipients.map((r, i) => (
                                                 <div key={i} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 text-xs group">
                                                     <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-medium shrink-0">{r.email[0].toUpperCase()}</div>

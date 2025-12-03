@@ -40,7 +40,7 @@ const DashboardSkeleton = () => {
                     </div>
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto scrollbar-hide">
                         {/* Table Header Skeleton */}
                         <div className="flex items-center gap-3 border-b border-border pb-2 mb-2">
                             <Skeleton className="h-3 w-24 flex-1" />

@@ -186,3 +186,25 @@
 .animate-accordion-up {
     animation: accordion-up 0.2s ease-out;
 }
+
+/* --------------------------------------------
+   Hide scrollbar utility (scrollable but no visible scrollbar)
+--------------------------------------------- */
+.scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari, Opera */
+}
+
+/* Global scrollbar hide - applies to all scrollable elements */
+* {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+
+*::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari, Opera */
+}

@@ -1,194 +1,89 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/components/ui/card';
-import { Input } from '@/components/components/ui/input';
-import { Button } from '@/components/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/components/ui/card';
 import { Avatar } from '@/components/components/ui/avatar';
 import { Badge } from '@/components/components/ui/badge';
 
 const Profile = () => {
-    const { user, logout } = useAuth();
-    const [isEditing, setIsEditing] = useState(false);
-    const [profileData, setProfileData] = useState({
-        name: user?.name || '',
-        email: user?.email || '',
-        company: '',
-        jobTitle: '',
-        phone: '',
-    });
-
-    const handleChange = (field, value) => {
-        setProfileData(prev => ({ ...prev, [field]: value }));
-    };
-
-    const handleSave = () => {
-        console.log('Saving profile:', profileData);
-        // TODO: Implement API call to save profile
-        setIsEditing(false);
-        toast.success('Profile updated successfully!');
-    };
+    const { user } = useAuth();
+    const navigate = useNavigate();
 
     return (
-        <div className="min-h-screen bg-background">
-            <Navbar onLogout={logout} />
+        <div className="min-h-screen bg-background flex">
+            <Navbar />
             <Sidebar />
-            
-            <main className="ml-64 mt-16 p-8">
-                <div className="max-w-4xl mx-auto">
-                    <h1 className="text-3xl font-bold font-maorin mb-6">Profile</h1>
-
-                    {/* Profile Header */}
-                    <Card className="mb-6">
-                        <CardContent className="pt-6">
-                            <div className="flex items-start gap-6">
-                                <Avatar
-                                    src={user?.profile_picture}
-                                    name={user?.name}
-                                    size="2xl"
-                                />
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <h2 className="text-2xl font-bold font-maorin">{user?.name}</h2>
-                                        <Badge variant="secondary">Active</Badge>
+            <main className="ml-64 mt-16 p-6 flex-1">
+                <div className="max-w-3xl mx-auto">
+                    <div className="mb-4">
+                        <h1 className="text-xl font-semibold">Profile</h1>
+                        <p className="text-xs text-muted-foreground">Your account information</p>
+                    </div>
+                    <Card className="mb-4">
+                        <CardContent className="p-4">
+                            <div className="flex items-center gap-4">
+                                <Avatar src={user?.profile_picture} name={user?.name} size="lg" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                        <h2 className="font-semibold text-lg">{user?.name}</h2>
+                                        <Badge variant="outline" className="text-[10px]">Active</Badge>
                                     </div>
-                                    <p className="text-muted-foreground mb-4">{user?.email}</p>
-                                    <div className="flex gap-3">
-                                        <Button 
-                                            onClick={() => setIsEditing(!isEditing)}
-                                            variant={isEditing ? 'outline' : 'default'}
-                                        >
-                                            {isEditing ? 'Cancel' : 'Edit Profile'}
-                                        </Button>
-                                        <Button variant="outline">
-                                            Change Password
-                                        </Button>
-                                    </div>
+                                    <p className="text-sm text-muted-foreground">{user?.email}</p>
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
-
-                    {/* Profile Information */}
-                    <Card className="mb-6">
-                        <CardHeader>
-                            <CardTitle>Personal Information</CardTitle>
+                    <Card className="mb-4">
+                        <CardHeader className="pb-2 pt-3 px-4">
+                            <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                <i className="ri-user-line text-blue-500"></i>
+                                Account Details
+                            </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">
-                                        Full Name
-                                    </label>
-                                    <Input
-                                        value={profileData.name}
-                                        onChange={(e) => handleChange('name', e.target.value)}
-                                        disabled={!isEditing}
-                                    />
+                        <CardContent className="px-4 pb-4 pt-0">
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between py-2 border-b">
+                                    <span className="text-sm text-muted-foreground">Full Name</span>
+                                    <span className="text-sm font-medium">{user?.name}</span>
                                 </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">
-                                        Email Address
-                                    </label>
-                                    <Input
-                                        value={profileData.email}
-                                        disabled
-                                        className="bg-muted"
-                                    />
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        Email cannot be changed
-                                    </p>
+                                <div className="flex items-center justify-between py-2 border-b">
+                                    <span className="text-sm text-muted-foreground">Email Address</span>
+                                    <span className="text-sm font-medium">{user?.email}</span>
                                 </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">
-                                        Company
-                                    </label>
-                                    <Input
-                                        value={profileData.company}
-                                        onChange={(e) => handleChange('company', e.target.value)}
-                                        disabled={!isEditing}
-                                        placeholder="Your company name"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">
-                                        Job Title
-                                    </label>
-                                    <Input
-                                        value={profileData.jobTitle}
-                                        onChange={(e) => handleChange('jobTitle', e.target.value)}
-                                        disabled={!isEditing}
-                                        placeholder="Your job title"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">
-                                        Phone Number
-                                    </label>
-                                    <Input
-                                        value={profileData.phone}
-                                        onChange={(e) => handleChange('phone', e.target.value)}
-                                        disabled={!isEditing}
-                                        placeholder="+1 (555) 000-0000"
-                                    />
-                                </div>
-                            </div>
-
-                            {isEditing && (
-                                <div className="flex justify-end pt-4">
-                                    <Button onClick={handleSave}>
-                                        Save Changes
-                                    </Button>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    {/* Account Stats */}
-                    <Card className="mb-6">
-                        <CardHeader>
-                            <CardTitle>Account Statistics</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-3 gap-6">
-                                <div className="text-center p-4 bg-muted rounded-lg">
-                                    <div className="text-3xl font-bold text-blue-600">0</div>
-                                    <div className="text-sm text-muted-foreground mt-1">Campaigns Created</div>
-                                </div>
-                                <div className="text-center p-4 bg-muted rounded-lg">
-                                    <div className="text-3xl font-bold text-green-600">0</div>
-                                    <div className="text-sm text-muted-foreground mt-1">Emails Sent</div>
-                                </div>
-                                <div className="text-center p-4 bg-muted rounded-lg">
-                                    <div className="text-3xl font-bold text-purple-600">0%</div>
-                                    <div className="text-sm text-muted-foreground mt-1">Response Rate</div>
+                                <div className="flex items-center justify-between py-2">
+                                    <span className="text-sm text-muted-foreground">Account Type</span>
+                                    <Badge variant="secondary" className="text-xs">Google OAuth</Badge>
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
-
-                    {/* Connected Accounts */}
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Connected Accounts</CardTitle>
+                        <CardHeader className="pb-2 pt-3 px-4">
+                            <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                <i className="ri-link text-green-500"></i>
+                                Connected Account
+                            </CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <CardContent className="px-4 pb-4 pt-0">
+                            <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                                 <div className="flex items-center gap-3">
-                                    <i className="ri-google-fill text-2xl text-red-600"></i>
+                                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border">
+                                        <i className="ri-google-fill text-lg text-[#4285F4]"></i>
+                                    </div>
                                     <div>
-                                        <p className="font-medium">Google Account</p>
-                                        <p className="text-sm text-muted-foreground">{user?.email}</p>
+                                        <p className="text-sm font-medium">Google Account</p>
+                                        <p className="text-xs text-muted-foreground">{user?.email}</p>
                                     </div>
                                 </div>
-                                <Badge variant="success">Connected</Badge>
+                                <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 text-xs">
+                                    <i className="ri-check-line mr-1"></i>Connected
+                                </Badge>
                             </div>
+                            <p className="text-xs text-muted-foreground mt-2">
+                                Your Gmail account is connected for sending emails.
+                            </p>
                         </CardContent>
                     </Card>
                 </div>

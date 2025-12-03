@@ -32,8 +32,30 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
     (response) => response.data,
     (error) => {
+        // Handle network errors (no response from server)
+        if (!error.response) {
+            const networkError = new Error('Network error. Please check your connection and try again.');
+            networkError.isNetworkError = true;
+            throw networkError;
+        }
+
+        const status = error.response?.status;
         const message = error.response?.data?.error || error.response?.data?.message || error.message || 'Request failed';
-        throw new Error(message);
+        
+        // Create error with additional info
+        const apiError = new Error(message);
+        apiError.status = status;
+        apiError.isAuthError = status === 401;
+        apiError.isServerError = status >= 500;
+        
+        // Only clear auth for explicit 401 responses (not network errors)
+        if (status === 401) {
+            // Don't auto-logout here - let the AuthContext handle it
+            // This allows for proper state management
+            apiError.message = 'Session expired. Please log in again.';
+        }
+        
+        throw apiError;
     }
 );
 
@@ -76,6 +98,16 @@ export const authAPI = {
      */
     refreshToken: async () => {
         return apiClient.post('/auth/refresh');
+    },
+
+    /**
+     * Delete account (soft delete)
+     */
+    deleteAccount: async () => {
+        const data = await apiClient.delete('/auth/account');
+        localStorage.removeItem('auth_token');
+        sessionStorage.removeItem('auth_token');
+        return data;
     },
 };
 
@@ -203,6 +235,13 @@ export const generalContactsAPI = {
     },
     
     /**
+     * Toggle favorite status
+     */
+    toggleFavorite: async (contactId) => {
+        return apiClient.patch(`/contacts/${contactId}/favorite`);
+    },
+    
+    /**
      * Delete contact
      */
     delete: async (contactId) => {
@@ -286,6 +325,13 @@ export const emailAPI = {
     send: async (emailData) => {
         return apiClient.post('/emails/test', emailData);
     },
+    
+    /**
+     * Get compose email history
+     */
+    getComposeHistory: async (params = {}) => {
+        return apiClient.get('/emails/compose-history', { params });
+    },
 };
 
 // ========================================
@@ -298,6 +344,54 @@ export const aiAPI = {
      */
     generateTemplate: async (prompt, tone, variables) => {
         return apiClient.post('/ai/generate-template', { prompt, tone, variables });
+    },
+};
+
+// ========================================
+// TEMPLATES API
+// ========================================
+
+export const templatesAPI = {
+    /**
+     * Get all templates (public + user's own)
+     */
+    getAll: async (category = 'all') => {
+        return apiClient.get('/templates', { params: { category } });
+    },
+
+    /**
+     * Get a single template
+     */
+    getById: async (id) => {
+        return apiClient.get(`/templates/${id}`);
+    },
+
+    /**
+     * Create a new template
+     */
+    create: async (templateData) => {
+        return apiClient.post('/templates', templateData);
+    },
+
+    /**
+     * Update a template
+     */
+    update: async (id, templateData) => {
+        return apiClient.put(`/templates/${id}`, templateData);
+    },
+
+    /**
+     * Toggle favorite status
+     */
+    toggleFavorite: async (id) => {
+        return apiClient.patch(`/templates/${id}/favorite`);
+    },
+
+    /**
+     * Delete a template (soft delete)
+     */
+    delete: async (id) => {
+        return apiClient.delete(`/templates/${id}`);
     },
 };
 
@@ -315,14 +409,49 @@ export const healthCheck = async () => {
     }
 };
 
+// ========================================
+// ADMIN API
+// ========================================
+
+export const adminAPI = {
+    /**
+     * Send admin verification code to email
+     */
+    sendCode: async () => {
+        return apiClient.post('/admin/send-code');
+    },
+
+    /**
+     * Verify the admin code
+     */
+    verifyCode: async (code) => {
+        return apiClient.post('/admin/verify-code', { code });
+    },
+
+    /**
+     * Get admin dashboard data
+     */
+    getDashboard: async () => {
+        // Use admin token from sessionStorage
+        const adminToken = sessionStorage.getItem('admin_token');
+        return apiClient.get('/admin/dashboard', {
+            headers: {
+                'Authorization': `Bearer ${adminToken}`
+            }
+        });
+    },
+};
+
 export default {
     auth: authAPI,
     dashboard: dashboardAPI,
     campaigns: campaignsAPI,
     contacts: contactsAPI,
     generalContacts: generalContactsAPI,
+    templates: templatesAPI,
     upload: uploadAPI,
     email: emailAPI,
     ai: aiAPI,
+    admin: adminAPI,
     healthCheck,
 };

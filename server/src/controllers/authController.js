@@ -214,6 +214,39 @@ export const logout = async (req, res) => {
 };
 
 /**
+ * Delete user account (soft delete)
+ */
+export const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Soft delete user account
+    const result = await query(
+      'UPDATE users SET is_active = false, updated_at = NOW() WHERE id = $1 RETURNING id',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Account deleted successfully',
+    });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete account',
+    });
+  }
+};
+
+/**
  * Refresh access token
  */
 export const refreshToken = async (req, res) => {

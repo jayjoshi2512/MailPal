@@ -50,7 +50,7 @@ const EmailRecipients = ({
 
             {/* Email Suggestions Dropdown */}
             {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-48 overflow-y-auto scrollbar-hide">
                     {suggestions.map((suggestion, index) => (
                         <div
                             key={index}

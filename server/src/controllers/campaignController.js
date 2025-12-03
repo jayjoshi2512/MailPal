@@ -2,6 +2,7 @@ import { query, transaction } from '../config/database.js';
 
 /**
  * Get all campaigns for the authenticated user
+ * Excludes "Manual Emails" system campaign used for compose page tracking
  */
 export const getCampaigns = async (req, res) => {
   try {
@@ -14,7 +15,9 @@ export const getCampaigns = async (req, res) => {
         COUNT(DISTINCT se.id) as total_sent
       FROM campaigns c
       LEFT JOIN sent_emails se ON c.id = se.campaign_id
-      WHERE c.user_id = $1
+      WHERE c.user_id = $1 
+      AND (c.is_active = true OR c.is_active IS NULL)
+      AND c.name != 'Manual Emails'
     `;
 
     const params = [userId];
@@ -112,18 +115,20 @@ export const createCampaign = async (req, res) => {
       name,
       subject,
       body,
+      attachments,
     } = req.body;
 
     const result = await query(
       `INSERT INTO campaigns 
-       (user_id, name, subject, body)
-       VALUES ($1, $2, $3, $4)
+       (user_id, name, subject, body, attachments)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
       [
         userId,
         name,
         subject,
         body,
+        attachments ? JSON.stringify(attachments) : null,
       ]
     );
 
@@ -161,6 +166,7 @@ export const updateCampaign = async (req, res) => {
       'delay_max',
       'track_opens',
       'track_clicks',
+      'attachments',
     ];
 
     const setClause = [];
@@ -212,7 +218,7 @@ export const updateCampaign = async (req, res) => {
 };
 
 /**
- * Delete a campaign
+ * Delete a campaign (soft delete)
  */
 export const deleteCampaign = async (req, res) => {
   try {
@@ -220,7 +226,7 @@ export const deleteCampaign = async (req, res) => {
     const userId = req.user.id;
 
     const result = await query(
-      'DELETE FROM campaigns WHERE id = $1 AND user_id = $2 RETURNING id',
+      'UPDATE campaigns SET is_active = false, updated_at = NOW() WHERE id = $1 AND user_id = $2 RETURNING id',
       [id, userId]
     );
 

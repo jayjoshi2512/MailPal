@@ -5,7 +5,8 @@ import {
   createContact,
   uploadContactsCSV,
   deleteContact,
-  updateContact
+  updateContact,
+  toggleFavorite
 } from '../controllers/contactsController.js';
 
 const router = express.Router();
@@ -24,6 +25,9 @@ router.post('/upload-csv', uploadContactsCSV);
 
 // PUT /api/contacts/:id - Update a contact
 router.put('/:id', updateContact);
+
+// PATCH /api/contacts/:id/favorite - Toggle favorite
+router.patch('/:id/favorite', toggleFavorite);
 
 // DELETE /api/contacts/:id - Delete a contact
 router.delete('/:id', deleteContact);

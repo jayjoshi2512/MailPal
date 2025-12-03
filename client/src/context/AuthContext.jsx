@@ -43,12 +43,24 @@ export const AuthProvider = ({ children }) => {
                         setIsAuthenticated(true);
                     } else {
                         console.log('⚠️ Invalid user data, clearing auth');
-                        logout();
+                        clearAuth();
                     }
                 } catch (error) {
                     console.error('❌ Failed to fetch user:', error);
-                    console.log('🧹 Clearing invalid auth token');
-                    logout();
+                    
+                    // Only logout on auth errors (401), not network/server errors
+                    if (error.isAuthError) {
+                        console.log('🔐 Auth error - clearing invalid token');
+                        clearAuth();
+                    } else if (error.isNetworkError || error.isServerError) {
+                        // For network/server errors, keep the session but show user is offline
+                        console.log('🌐 Network/Server error - keeping session, server may be temporarily unavailable');
+                        // Keep existing auth state - don't logout
+                        // User can still see cached data, and app will retry when connection is restored
+                    } else {
+                        // Unknown error - be cautious but don't auto-logout
+                        console.log('⚠️ Unknown error - keeping session');
+                    }
                 }
             } else {
                 console.log('⚠️ No auth token found, user not logged in');
@@ -58,6 +70,14 @@ export const AuthProvider = ({ children }) => {
 
         checkAuth();
     }, []);
+
+    // Clear auth state without calling logout API
+    const clearAuth = () => {
+        setUser(null);
+        setIsAuthenticated(false);
+        localStorage.removeItem('auth_token');
+        sessionStorage.removeItem('auth_token');
+    };
 
     const login = (userData) => {
         console.log('🔐 Logging in user:', userData.email);
@@ -78,12 +98,7 @@ export const AuthProvider = ({ children }) => {
             console.error('❌ Logout API call failed:', error);
         }
         
-        setUser(null);
-        setIsAuthenticated(false);
-        
-        // Clear auth tokens from both storages
-        localStorage.removeItem('auth_token');
-        sessionStorage.removeItem('auth_token');
+        clearAuth();
         console.log('✅ User logged out successfully');
     };
 

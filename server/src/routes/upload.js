@@ -1,9 +1,16 @@
 import express from 'express';
-import { uploadFile, uploadFiles, deleteUploadedFile } from '../controllers/uploadController.js';
+import { uploadFile, uploadFiles, deleteUploadedFile, getMyUploads } from '../controllers/uploadController.js';
 import { authenticate } from '../middleware/auth.js';
 import { uploadSingle, uploadMultiple, handleUploadError } from '../middleware/upload.js';
 
 const router = express.Router();
+
+/**
+ * @route   GET /api/upload/my-uploads
+ * @desc    Get all uploads for current user
+ * @access  Private
+ */
+router.get('/my-uploads', authenticate, getMyUploads);
 
 /**
  * @route   POST /api/upload/single

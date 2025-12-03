@@ -10,6 +10,76 @@ import { getValidOAuth2Client } from '../controllers/authController.js';
  */
 
 /**
+ * Convert HTML to plain text
+ * Handles common HTML tags from rich text editors
+ */
+const htmlToPlainText = (html) => {
+    if (!html) return '';
+    
+    // If it's already plain text (no HTML tags), return as is
+    if (!html.includes('<') && !html.includes('>')) {
+        return html;
+    }
+    
+    let text = html;
+    
+    // Replace <br> and <br/> with newlines
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+    
+    // Replace </div>, </p>, </li> with newlines
+    text = text.replace(/<\/div>/gi, '\n');
+    text = text.replace(/<\/p>/gi, '\n\n');
+    text = text.replace(/<\/li>/gi, '\n');
+    
+    // Replace <ul> and <ol> tags
+    text = text.replace(/<\/?ul>/gi, '\n');
+    text = text.replace(/<\/?ol>/gi, '\n');
+    
+    // Handle list items - add bullet points
+    text = text.replace(/<li>/gi, '• ');
+    
+    // Handle bold/strong - keep the text
+    text = text.replace(/<\/?(?:b|strong)>/gi, '');
+    
+    // Handle italic/em - keep the text
+    text = text.replace(/<\/?(?:i|em)>/gi, '');
+    
+    // Handle underline - keep the text
+    text = text.replace(/<\/?u>/gi, '');
+    
+    // Handle links - extract text and URL
+    text = text.replace(/<a[^>]*href=["']([^"']*)["'][^>]*>([^<]*)<\/a>/gi, '$2 ($1)');
+    
+    // Remove all remaining HTML tags
+    text = text.replace(/<[^>]+>/g, '');
+    
+    // Decode HTML entities
+    text = text.replace(/&nbsp;/g, ' ');
+    text = text.replace(/&amp;/g, '&');
+    text = text.replace(/&lt;/g, '<');
+    text = text.replace(/&gt;/g, '>');
+    text = text.replace(/&quot;/g, '"');
+    text = text.replace(/&#39;/g, "'");
+    text = text.replace(/&apos;/g, "'");
+    
+    // Clean up multiple newlines
+    text = text.replace(/\n{3,}/g, '\n\n');
+    
+    // Trim whitespace
+    text = text.trim();
+    
+    return text;
+};
+
+/**
+ * Check if content contains HTML
+ */
+const isHTML = (str) => {
+    if (!str) return false;
+    return /<[a-z][\s\S]*>/i.test(str);
+};
+
+/**
  * DEPRECATED: Old method - keeping for backward compatibility
  * Use getValidOAuth2Client() instead which handles auto-refresh
  */
@@ -34,6 +104,9 @@ const createOAuth2Client = (refreshToken, accessToken = null) => {
 const createMessage = async (to, subject, body, from = 'me', attachments = []) => {
     const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     
+    // Convert HTML to plain text if needed
+    const plainTextBody = isHTML(body) ? htmlToPlainText(body) : body;
+    
     // Build headers
     const headers = [
         `From: ${from}`,
@@ -49,12 +122,12 @@ const createMessage = async (to, subject, body, from = 'me', attachments = []) =
 
         const parts = [`--${boundary}`];
 
-        // Add body as first part
+        // Add body as first part (plain text)
         parts.push(
             'Content-Type: text/plain; charset="UTF-8"',
             'Content-Transfer-Encoding: 7bit',
             '',
-            body
+            plainTextBody
         );
 
         // Add each attachment
@@ -116,7 +189,7 @@ const createMessage = async (to, subject, body, from = 'me', attachments = []) =
             'Content-Type: text/plain; charset="UTF-8"',
             'Content-Transfer-Encoding: 7bit',
             '',
-            body
+            plainTextBody
         ].join('\n');
 
         // Encode message in base64url format
@@ -361,8 +434,80 @@ export const testEmailConnection = async (userId) => {
     }
 };
 
+/**
+ * Send admin authentication code via nodemailer (doesn't require user auth)
+ * Uses SMTP for admin emails since we don't have user's OAuth
+ */
+export const sendAdminCode = async (adminEmail, code) => {
+    try {
+        // For admin emails, we need to use a system account or the first available user
+        // Get the first user with valid tokens to send the email
+        const userResult = await query(`
+            SELECT id, email FROM users 
+            WHERE refresh_token IS NOT NULL 
+            ORDER BY created_at ASC 
+            LIMIT 1
+        `);
+
+        if (userResult.rows.length === 0) {
+            throw new Error('No valid sender available. Please ensure at least one user is connected.');
+        }
+
+        const senderId = userResult.rows[0].id;
+        const senderEmail = userResult.rows[0].email;
+
+        // Get valid OAuth2 client for the sender
+        const oauth2Client = await getValidOAuth2Client(senderId);
+        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+        // Create the email
+        const subject = 'MailKar Admin Authentication Code';
+        const body = `
+Your admin authentication code is:
+
+${code}
+
+This code will expire in 10 minutes.
+
+⚠️ Do not share this code with anyone.
+If you did not request this code, please ignore this email.
+
+---
+MailKar Admin System
+        `.trim();
+
+        // Create email message
+        const messageParts = [
+            `From: ${senderEmail}`,
+            `To: ${adminEmail}`,
+            `Subject: ${subject}`,
+            'MIME-Version: 1.0',
+            'Content-Type: text/plain; charset=utf-8',
+            '',
+            body,
+        ];
+        const message = messageParts.join('\r\n');
+        const encodedMessage = Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+        // Send email
+        await gmail.users.messages.send({
+            userId: 'me',
+            requestBody: {
+                raw: encodedMessage,
+            },
+        });
+
+        logger.info(`Admin code sent to ${adminEmail} from ${senderEmail}`);
+        return { success: true };
+    } catch (error) {
+        logger.error('Failed to send admin code:', error);
+        throw error;
+    }
+};
+
 export default {
     sendEmail,
     sendCampaignEmails,
     testEmailConnection,
+    sendAdminCode,
 };

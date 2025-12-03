@@ -4,6 +4,7 @@ import {
   sendTestEmail,
   sendCampaignEmails,
   testConnection,
+  getComposeHistory,
 } from '../controllers/emailController.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validator.js';
@@ -25,5 +26,6 @@ const sendTestEmailValidation = [
 router.post('/test', emailLimiter, sendTestEmailValidation, validate, sendTestEmail);
 router.post('/campaign/:campaignId/send', emailLimiter, sendCampaignEmails);
 router.get('/test-connection', testConnection);
+router.get('/compose-history', getComposeHistory);
 
 export default router;

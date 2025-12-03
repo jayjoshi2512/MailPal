@@ -18,12 +18,14 @@ export const getDashboardStats = async (req, res) => {
             campaignStats,
             recentActivity,
             emailTrends,
+            campaignTrends,
             campaignPerformance
         ] = await Promise.all([
             getEmailStatistics(userId),
             getCampaignStatistics(userId),
             getRecentActivity(userId),
             getEmailTrends(userId),
+            getCampaignTrends(userId),
             getCampaignPerformance(userId)
         ]);
 
@@ -34,6 +36,7 @@ export const getDashboardStats = async (req, res) => {
                 campaignStats,
                 recentActivity,
                 emailTrends,
+                campaignTrends,
                 campaignPerformance
             }
         });
@@ -87,6 +90,7 @@ async function getEmailStatistics(userId) {
 
 /**
  * Get campaign statistics
+ * Excludes "Manual Emails" system campaign
  */
 async function getCampaignStatistics(userId) {
     try {
@@ -97,7 +101,9 @@ async function getCampaignStatistics(userId) {
                 COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_campaigns,
                 COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_campaigns
              FROM campaigns
-             WHERE user_id = $1`,
+             WHERE user_id = $1 
+             AND (is_active = true OR is_active IS NULL)
+             AND name != 'Manual Emails'`,
             [userId]
         );
 
@@ -129,6 +135,7 @@ async function getCampaignStatistics(userId) {
 
 /**
  * Get recent email activity (last 10 emails)
+ * Shows ALL sent emails - both compose and campaign emails
  */
 async function getRecentActivity(userId) {
     try {
@@ -139,10 +146,12 @@ async function getRecentActivity(userId) {
                 se.recipient_email as email_to,
                 se.recipient_name,
                 se.sent_at,
-                c.name as campaign_name
+                COALESCE(c.name, 'Compose') as campaign_name,
+                CASE WHEN c.name = 'Manual Emails' OR c.id IS NULL THEN 'compose' ELSE 'campaign' END as email_type
              FROM sent_emails se
              LEFT JOIN campaigns c ON se.campaign_id = c.id
-             WHERE se.user_id = $1 AND se.sent_at IS NOT NULL
+             WHERE se.user_id = $1 
+             AND se.sent_at IS NOT NULL
              ORDER BY se.sent_at DESC
              LIMIT 10`,
             [userId]
@@ -160,7 +169,8 @@ async function getRecentActivity(userId) {
             recipientName: row.recipient_name,
             sentAt: row.sent_at,
             status: 'sent',
-            campaignName: row.campaign_name || 'Manual Email'
+            campaignName: row.campaign_name === 'Manual Emails' ? 'Compose' : row.campaign_name,
+            emailType: row.email_type
         }));
     } catch (error) {
         logger.error('Error fetching recent activity:', error);
@@ -177,9 +187,8 @@ async function getEmailTrends(userId) {
             `SELECT 
                 DATE(sent_at) as date,
                 COUNT(*) as count
-             FROM sent_emails se
-             JOIN campaigns c ON se.campaign_id = c.id
-             WHERE c.user_id = $1
+             FROM sent_emails
+             WHERE user_id = $1
              AND sent_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
              AND sent_at IS NOT NULL
              GROUP BY DATE(sent_at)
@@ -193,7 +202,7 @@ async function getEmailTrends(userId) {
 
         return result.rows.map(row => ({
             date: row.date,
-            emails: parseInt(row.count) || 0
+            count: parseInt(row.count) || 0
         }));
     } catch (error) {
         logger.error('Error fetching email trends:', error);
@@ -202,7 +211,46 @@ async function getEmailTrends(userId) {
 }
 
 /**
+ * Get campaign activity trends over time (last 30 days)
+ * Excludes "Manual Emails" system campaign
+ */
+async function getCampaignTrends(userId) {
+    try {
+        const result = await query(
+            `SELECT 
+                DATE(created_at) as date,
+                COUNT(*) as count,
+                COUNT(CASE WHEN status = 'active' THEN 1 END) as active,
+                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed
+             FROM campaigns
+             WHERE user_id = $1
+             AND created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
+             AND (is_active = true OR is_active IS NULL)
+             AND name != 'Manual Emails'
+             GROUP BY DATE(created_at)
+             ORDER BY DATE(created_at) ASC`,
+            [userId]
+        );
+
+        if (!result.rows || result.rows.length === 0) {
+            return [];
+        }
+
+        return result.rows.map(row => ({
+            date: row.date,
+            count: parseInt(row.count) || 0,
+            active: parseInt(row.active) || 0,
+            completed: parseInt(row.completed) || 0
+        }));
+    } catch (error) {
+        logger.error('Error fetching campaign trends:', error);
+        return [];
+    }
+}
+
+/**
  * Get top performing campaigns
+ * Excludes "Manual Emails" system campaign
  */
 async function getCampaignPerformance(userId) {
     try {
@@ -211,20 +259,12 @@ async function getCampaignPerformance(userId) {
                 c.id,
                 c.name,
                 c.status,
-                COUNT(DISTINCT se.id) as emails_sent,
-                COUNT(DISTINCT ct.id) as clicks,
-                ROUND(
-                    CASE 
-                        WHEN COUNT(DISTINCT se.id) > 0 
-                        THEN (COUNT(DISTINCT ct.id)::numeric / COUNT(DISTINCT se.id)::numeric * 100) 
-                        ELSE 0 
-                    END, 
-                    2
-                ) as click_rate
+                COUNT(DISTINCT se.id) as emails_sent
              FROM campaigns c
              LEFT JOIN sent_emails se ON c.id = se.campaign_id
-             LEFT JOIN click_tracking ct ON se.id = ct.sent_email_id
-             WHERE c.user_id = $1
+             WHERE c.user_id = $1 
+             AND (c.is_active = true OR c.is_active IS NULL)
+             AND c.name != 'Manual Emails'
              GROUP BY c.id, c.name, c.status
              ORDER BY emails_sent DESC
              LIMIT 5`,
@@ -239,9 +279,7 @@ async function getCampaignPerformance(userId) {
             id: row.id,
             name: row.name || 'Unnamed Campaign',
             status: row.status || 'unknown',
-            emailsSent: parseInt(row.emails_sent) || 0,
-            clicks: parseInt(row.clicks) || 0,
-            clickRate: parseFloat(row.click_rate) || 0
+            emails_sent: parseInt(row.emails_sent) || 0
         }));
     } catch (error) {
         logger.error('Error fetching campaign performance:', error);
@@ -251,6 +289,7 @@ async function getCampaignPerformance(userId) {
 
 /**
  * Get overall response rate
+ * Note: Since click_tracking is removed, this just returns email stats
  */
 export const getResponseRate = async (req, res) => {
     try {
@@ -258,12 +297,10 @@ export const getResponseRate = async (req, res) => {
 
         const result = await query(
             `SELECT 
-                COUNT(DISTINCT se.id) as total_sent,
-                COUNT(DISTINCT ct.id) as total_clicks
+                COUNT(DISTINCT se.id) as total_sent
              FROM campaigns c
              LEFT JOIN sent_emails se ON c.id = se.campaign_id
-             LEFT JOIN click_tracking ct ON se.id = ct.sent_email_id
-             WHERE c.user_id = $1`,
+             WHERE c.user_id = $1 AND (c.is_active = true OR c.is_active IS NULL)`,
             [userId]
         );
 
@@ -272,22 +309,18 @@ export const getResponseRate = async (req, res) => {
                 success: true,
                 data: {
                     totalSent: 0,
-                    totalClicks: 0,
                     responseRate: 0
                 }
             });
         }
 
         const totalSent = parseInt(result.rows[0].total_sent) || 0;
-        const totalClicks = parseInt(result.rows[0].total_clicks) || 0;
-        const responseRate = totalSent > 0 ? ((totalClicks / totalSent) * 100).toFixed(2) : 0;
 
         res.json({
             success: true,
             data: {
                 totalSent,
-                totalClicks,
-                responseRate: parseFloat(responseRate)
+                responseRate: 0 // Click tracking removed
             }
         });
     } catch (error) {

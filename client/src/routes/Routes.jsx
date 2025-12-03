@@ -10,7 +10,9 @@ import Profile from '@/pages/Profile';
 import Campaigns from '@/pages/Campaigns';
 import NewCampaign from '@/pages/NewCampaign';
 import CampaignDetail from '@/pages/CampaignDetail';
+import Templates from '@/pages/Templates';
 import HowToUse from '@/pages/HowToUse';
+import AdminPanel from '@/pages/AdminPanel';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 /**
@@ -72,6 +74,16 @@ const Routes = () => {
                 } 
             />
 
+            {/* Templates Route */}
+            <Route 
+                path="/templates" 
+                element={
+                    <ProtectedRoute>
+                        <Templates />
+                    </ProtectedRoute>
+                } 
+            />
+
             <Route 
                 path="/settings" 
                 element={
@@ -98,6 +110,9 @@ const Routes = () => {
                     </ProtectedRoute>
                 } 
             />
+
+            {/* Admin Route - No ProtectedRoute, has its own authentication */}
+            <Route path="/admin" element={<AdminPanel />} />
 
             {/* Catch all - redirect to home */}
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/components/ui/skeleton';
  */
 const ContactsSidebarSkeleton = () => {
     return (
-        <div className="fixed top-16 right-0 w-80 h-[calc(100vh-4rem)] border-l border-border bg-background overflow-y-auto">
+        <div className="fixed top-16 right-0 w-80 h-[calc(100vh-4rem)] border-l border-border bg-background overflow-y-auto scrollbar-hide">
             <div className="p-4 space-y-4">
                 {/* Header Skeleton */}
                 <div className="flex items-center justify-between mb-3">

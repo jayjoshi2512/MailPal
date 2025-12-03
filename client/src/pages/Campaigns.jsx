@@ -12,7 +12,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/components/ui/dialog';
-import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
@@ -22,18 +21,11 @@ import { campaignsAPI } from '@/services/api';
  * Campaigns Page - List and manage email campaigns
  */
 const Campaigns = () => {
-    const { logout } = useAuth();
     const navigate = useNavigate();
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [deleteDialog, setDeleteDialog] = useState({ open: false, campaign: null });
-
-    // Handle logout
-    const handleLogout = useCallback(() => {
-        logout();
-        navigate('/', { replace: true });
-    }, [logout, navigate]);
 
     // Fetch campaigns
     useEffect(() => {
@@ -94,7 +86,7 @@ const Campaigns = () => {
 
     return (
         <div className="min-h-screen bg-background flex">
-            <Navbar onLogout={handleLogout} />
+            <Navbar />
             <Sidebar />
             
             <main className="ml-64 mt-16 p-6 flex-1">

@@ -5,6 +5,7 @@ import {
   getCurrentUser,
   logout,
   refreshToken,
+  deleteAccount,
 } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
@@ -19,5 +20,6 @@ router.get('/google/callback', authLimiter, googleCallback);
 router.get('/me', authenticate, getCurrentUser);
 router.post('/logout', authenticate, logout);
 router.post('/refresh', authenticate, refreshToken);
+router.delete('/account', authenticate, deleteAccount);
 
 export default router;

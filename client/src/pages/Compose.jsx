@@ -1,8 +1,9 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/components/ui/card';
 import { Input } from '@/components/components/ui/input';
 import { Textarea } from '@/components/components/ui/textarea';
 import { Button } from '@/components/components/ui/button';
+import { Badge } from '@/components/components/ui/badge';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -62,6 +63,46 @@ const ComposeEnhanced = () => {
     const [uploadProgress, setUploadProgress] = useState({});
     const [uploadedFiles, setUploadedFiles] = useState([]); // Store uploaded file metadata with server paths
     const [showDiscardModal, setShowDiscardModal] = useState(false);
+    
+    // History state
+    const [showHistory, setShowHistory] = useState(false);
+    const [history, setHistory] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historySearch, setHistorySearch] = useState('');
+    const [historyPage, setHistoryPage] = useState(1);
+    const [historyPagination, setHistoryPagination] = useState({ total: 0, totalPages: 0 });
+    const [selectedEmail, setSelectedEmail] = useState(null);
+
+    // Fetch compose history
+    const fetchHistory = useCallback(async (page = 1, search = '') => {
+        setHistoryLoading(true);
+        try {
+            const result = await emailAPI.getComposeHistory({ page, limit: 10, search });
+            if (result.success) {
+                setHistory(result.data.emails);
+                setHistoryPagination(result.data.pagination);
+            }
+        } catch (error) {
+            console.error('Failed to fetch history:', error);
+        } finally {
+            setHistoryLoading(false);
+        }
+    }, []);
+
+    // Load history when section opens
+    useEffect(() => {
+        if (showHistory) {
+            fetchHistory(historyPage, historySearch);
+        }
+    }, [showHistory, historyPage, historySearch, fetchHistory]);
+
+    // Refresh history after sending
+    const refreshHistory = useCallback(() => {
+        if (showHistory) {
+            fetchHistory(1, historySearch);
+            setHistoryPage(1);
+        }
+    }, [showHistory, historySearch, fetchHistory]);
 
     // Check if form has content (for enabling send button)
     const hasContent = toEmails.length > 0 && subject.trim().length > 0 && body.trim().length > 0;
@@ -248,6 +289,9 @@ const ComposeEnhanced = () => {
                 setBody('');
                 clearAttachments();
                 setUploadedFiles([]);
+                
+                // Refresh history
+                refreshHistory();
 
                 // Navigate to dashboard after a short delay
                 setTimeout(() => {
@@ -286,7 +330,7 @@ const ComposeEnhanced = () => {
 
     return (
         <div className="min-h-screen bg-background flex">
-            <Navbar onLogout={handleLogout} />
+            <Navbar />
             <Sidebar />
             
             {/* Main content - centered between left sidebar (64) and right sidebar (72) */}
@@ -398,6 +442,175 @@ const ComposeEnhanced = () => {
                             </div>
                         </CardContent>
                     </Card>
+
+                    {/* History Section */}
+                    <div className="mt-4">
+                        <button
+                            onClick={() => setShowHistory(!showHistory)}
+                            className="w-full flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                        >
+                            <div className="flex items-center gap-2">
+                                <i className="ri-history-line text-blue-500"></i>
+                                <span className="text-sm font-medium">Sent History</span>
+                                {historyPagination.total > 0 && (
+                                    <Badge variant="secondary" className="text-xs">{historyPagination.total}</Badge>
+                                )}
+                            </div>
+                            <i className={`ri-arrow-${showHistory ? 'up' : 'down'}-s-line text-muted-foreground`}></i>
+                        </button>
+
+                        {showHistory && (
+                            <Card className="mt-2 shadow-sm">
+                                <CardContent className="p-3">
+                                    {/* Search */}
+                                    <div className="mb-3">
+                                        <div className="relative">
+                                            <i className="ri-search-line absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm"></i>
+                                            <Input
+                                                placeholder="Search by subject or recipient..."
+                                                value={historySearch}
+                                                onChange={(e) => {
+                                                    setHistorySearch(e.target.value);
+                                                    setHistoryPage(1);
+                                                }}
+                                                className="pl-8 h-8 text-sm"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Email List */}
+                                    {historyLoading ? (
+                                        <div className="space-y-2">
+                                            {[1, 2, 3].map(i => (
+                                                <div key={i} className="p-3 rounded-lg bg-muted/50 animate-pulse">
+                                                    <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                                                    <div className="h-3 bg-muted rounded w-1/2"></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : history.length > 0 ? (
+                                        <>
+                                            <div className="space-y-2 max-h-[300px] overflow-y-auto scrollbar-hide">
+                                                {history.map((email) => (
+                                                    <div
+                                                        key={email.id}
+                                                        onClick={() => setSelectedEmail(selectedEmail?.id === email.id ? null : email)}
+                                                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                                                            selectedEmail?.id === email.id 
+                                                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                                                                : 'border-border/50 hover:bg-muted/50'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-sm font-medium truncate">{email.subject || 'No Subject'}</p>
+                                                                <p className="text-xs text-muted-foreground truncate">
+                                                                    To: {email.recipientName ? `${email.recipientName} <${email.recipientEmail}>` : email.recipientEmail}
+                                                                </p>
+                                                            </div>
+                                                            <div className="text-right shrink-0">
+                                                                <Badge variant="outline" className="text-[9px] bg-green-50 text-green-600 dark:bg-green-900/50 dark:text-green-400">
+                                                                    {email.status}
+                                                                </Badge>
+                                                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                                                    {new Date(email.sentAt).toLocaleDateString('en-US', { 
+                                                                        month: 'short', 
+                                                                        day: 'numeric',
+                                                                        hour: '2-digit',
+                                                                        minute: '2-digit'
+                                                                    })}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Expanded View */}
+                                                        {selectedEmail?.id === email.id && (
+                                                            <div className="mt-3 pt-3 border-t border-border/50">
+                                                                <div className="text-xs text-muted-foreground mb-2">Message:</div>
+                                                                <div 
+                                                                    className="text-xs bg-muted/30 p-2 rounded max-h-[150px] overflow-y-auto scrollbar-hide"
+                                                                    dangerouslySetInnerHTML={{ __html: email.body?.replace(/\n/g, '<br>') || 'No content' }}
+                                                                />
+                                                                <div className="flex gap-2 mt-3">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="text-xs h-7"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            addEmail(email.recipientEmail);
+                                                                            setSubject(`Re: ${email.subject}`);
+                                                                            toast.success('Reply started');
+                                                                            setSelectedEmail(null);
+                                                                            setShowHistory(false);
+                                                                        }}
+                                                                    >
+                                                                        <i className="ri-reply-line mr-1"></i>
+                                                                        Reply
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="text-xs h-7"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setSubject(`Fwd: ${email.subject}`);
+                                                                            setBody(`\n\n---------- Forwarded message ----------\nFrom: ${user?.email}\nTo: ${email.recipientEmail}\nSubject: ${email.subject}\n\n${email.body || ''}`);
+                                                                            toast.success('Message ready to forward');
+                                                                            setSelectedEmail(null);
+                                                                            setShowHistory(false);
+                                                                        }}
+                                                                    >
+                                                                        <i className="ri-share-forward-line mr-1"></i>
+                                                                        Forward
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Pagination */}
+                                            {historyPagination.totalPages > 1 && (
+                                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
+                                                    <span className="text-xs text-muted-foreground">
+                                                        Page {historyPage} of {historyPagination.totalPages}
+                                                    </span>
+                                                    <div className="flex gap-1">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-7 w-7 p-0"
+                                                            disabled={historyPage === 1}
+                                                            onClick={() => setHistoryPage(p => p - 1)}
+                                                        >
+                                                            <i className="ri-arrow-left-s-line"></i>
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-7 w-7 p-0"
+                                                            disabled={historyPage === historyPagination.totalPages}
+                                                            onClick={() => setHistoryPage(p => p + 1)}
+                                                        >
+                                                            <i className="ri-arrow-right-s-line"></i>
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="text-center py-8 text-muted-foreground">
+                                            <i className="ri-mail-line text-3xl mb-2 opacity-50"></i>
+                                            <p className="text-sm">No sent emails yet</p>
+                                            <p className="text-xs">Your sent emails will appear here</p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
+                    </div>
                 </div>
             </main>
 
