@@ -6,11 +6,8 @@ dotenv.config();
 
 // Polyfill fetch for Node.js 16 (required for Neon serverless)
 if (!globalThis.fetch) {
-  const { fetch, Headers, Request, Response } = await import('undici');
+  const fetch = (await import('node-fetch')).default;
   globalThis.fetch = fetch;
-  globalThis.Headers = Headers;
-  globalThis.Request = Request;
-  globalThis.Response = Response;
 }
 
 const { Pool } = pg;
