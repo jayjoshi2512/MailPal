@@ -13,8 +13,8 @@ const poolConfig = process.env.DATABASE_URL
       ssl: {
         rejectUnauthorized: false, // Required for Neon
       },
-      max: 20,
-      idleTimeoutMillis: 30000,
+      max: 5, // Reduced for shared hosting
+      idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 10000,
     }
   : {
@@ -23,8 +23,8 @@ const poolConfig = process.env.DATABASE_URL
       database: process.env.DB_NAME || 'MailPal',
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD,
-      max: 20,
-      idleTimeoutMillis: 30000,
+      max: 5, // Reduced for shared hosting
+      idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 2000,
     };
 
