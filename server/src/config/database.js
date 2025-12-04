@@ -1,19 +1,25 @@
 import pg from 'pg';
+import { neon } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const { Pool } = pg;
 
-// PostgreSQL connection pool configuration
-// Supports both DATABASE_URL (Neon/production) and individual env vars (local dev)
+// Check if we should use Neon serverless (for restricted hosts like cPanel)
+const useNeonServerless = process.env.USE_NEON_SERVERLESS === 'true' && process.env.DATABASE_URL;
+
+// Neon serverless SQL function (uses HTTPS, no port 5432 needed)
+const neonSql = useNeonServerless ? neon(process.env.DATABASE_URL) : null;
+
+// PostgreSQL connection pool configuration (for local dev or unrestricted hosts)
 const poolConfig = process.env.DATABASE_URL
   ? {
       connectionString: process.env.DATABASE_URL,
       ssl: {
-        rejectUnauthorized: false, // Required for Neon
+        rejectUnauthorized: false,
       },
-      max: 5, // Reduced for shared hosting
+      max: 5,
       idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 10000,
     }
@@ -23,30 +29,41 @@ const poolConfig = process.env.DATABASE_URL
       database: process.env.DB_NAME || 'MailPal',
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD,
-      max: 5, // Reduced for shared hosting
+      max: 5,
       idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 2000,
     };
 
-const pool = new Pool(poolConfig);
+// Only create pool if not using serverless
+const pool = useNeonServerless ? null : new Pool(poolConfig);
 
 // Test database connection
-pool.on('connect', () => {
-  console.log('✅ Connected to PostgreSQL database');
-});
+if (pool) {
+  pool.on('connect', () => {
+    console.log('✅ Connected to PostgreSQL database');
+  });
 
-pool.on('error', (err) => {
-  console.error('❌ Unexpected error on idle client', err);
-  process.exit(-1);
-});
+  pool.on('error', (err) => {
+    console.error('❌ Unexpected error on idle client', err);
+    process.exit(-1);
+  });
+}
 
-// Query helper with logging
+// Query helper - uses serverless or pool based on config
 export const query = async (text, params) => {
   const start = Date.now();
   try {
-    const res = await pool.query(text, params);
+    let res;
+    if (useNeonServerless) {
+      // Neon serverless mode (HTTPS)
+      const rows = await neonSql(text, params || []);
+      res = { rows, rowCount: rows.length };
+    } else {
+      // Traditional pool mode (TCP)
+      res = await pool.query(text, params);
+    }
     const duration = Date.now() - start;
-    console.log('Executed query', { text, duration, rows: res.rowCount });
+    console.log('Executed query', { text: text.substring(0, 50), duration, rows: res.rowCount });
     return res;
   } catch (error) {
     console.error('Database query error:', error);
@@ -54,8 +71,18 @@ export const query = async (text, params) => {
   }
 };
 
-// Transaction helper
+// Transaction helper (only works with pool, not serverless)
 export const transaction = async (callback) => {
+  if (useNeonServerless) {
+    // For serverless, we can't use traditional transactions
+    // Just execute the callback directly
+    console.warn('Transactions not fully supported in serverless mode');
+    return await callback({ query: async (text, params) => {
+      const rows = await neonSql(text, params || []);
+      return { rows, rowCount: rows.length };
+    }});
+  }
+  
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
