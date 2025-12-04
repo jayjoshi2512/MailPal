@@ -3,7 +3,7 @@ import { query } from '../config/database.js';
 import config from '../config/index.js';
 import logger from '../config/logger.js';
 import { getValidOAuth2Client } from '../controllers/authController.js';
-import { recordSentEmail, recordCampaignEmail } from '../middleware/upload.js';
+import { cleanupTempFiles } from '../middleware/upload.js';
 
 /**
  * Email Service - Handles sending emails via Gmail API
@@ -289,19 +289,14 @@ export const sendEmail = async (userId, to, subject, body, campaignId = null, co
 
         logger.info(`Tracked email in database - Campaign: ${campaignId}, Recipient: ${to}`);
 
-        // Also record to file system for easy browsing
-        // Creates: uploads/senders/{sender}/sent_to/{recipient}/{timestamp}/
-        try {
+        // Clean up temp attachment files after successful send
+        // Files are now embedded in the email (stored in Gmail), no need to keep locally
+        if (attachments && attachments.length > 0) {
             const attachmentPaths = attachments.map(a => a.path).filter(Boolean);
-            recordSentEmail(userEmail, to, {
-                subject,
-                body,
-                messageId: response.data.id
-            }, attachmentPaths);
-            logger.info(`Recorded email to file system: ${userEmail} -> ${to}`);
-        } catch (fileError) {
-            // Non-critical error - don't fail the send
-            logger.error('Error recording email to file system:', fileError);
+            if (attachmentPaths.length > 0) {
+                const cleanupResult = cleanupTempFiles(attachmentPaths);
+                logger.info(`Cleaned up ${cleanupResult.deleted} temp attachment(s) after send`);
+            }
         }
 
         // Update contact status if contact exists

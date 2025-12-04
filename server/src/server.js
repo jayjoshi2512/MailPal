@@ -12,6 +12,7 @@ import { testConnection } from './config/database.js';
 import routes from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
+import { cleanupOldTempFiles } from './middleware/upload.js';
 
 const app = express();
 
@@ -96,6 +97,21 @@ const startServer = async () => {
             logger.info(`📝 Environment: ${config.nodeEnv}`);
             logger.info(`🌐 Client URL: ${config.clientUrl}`);
             logger.info(`💾 Database: ${config.database.name}`);
+            
+            // Start temp file cleanup scheduler (every 30 minutes)
+            // Cleans up orphaned attachment files older than 1 hour
+            setInterval(() => {
+                const result = cleanupOldTempFiles(60 * 60 * 1000); // 1 hour max age
+                if (result.deleted > 0) {
+                    logger.info(`🧹 Temp cleanup: ${result.deleted} old file(s) removed`);
+                }
+            }, 30 * 60 * 1000); // Run every 30 minutes
+            
+            // Run initial cleanup on startup
+            const initialCleanup = cleanupOldTempFiles(60 * 60 * 1000);
+            if (initialCleanup.deleted > 0) {
+                logger.info(`🧹 Initial cleanup: ${initialCleanup.deleted} old file(s) removed`);
+            }
         });
     } catch (error) {
         logger.error('Failed to start server:', error);

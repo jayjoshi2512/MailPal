@@ -5,25 +5,18 @@ import {
     getFileInfo, 
     getUserUploads, 
     deleteFile,
-    // Email tracking with actual emails
-    recordSentEmail,
-    recordBulkSentEmail,
-    getSentEmails,
-    getSenderRecipients,
-    getSenderEmailHistory,
-    // Campaign tracking
-    recordCampaignEmail,
-    getCampaignRecipientEmails,
-    getCampaignAllRecipients,
-    getCampaignDir,
-    getCampaignAttachmentsDir,
-    emailToFolder
+    clearUserUploads
 } from '../middleware/upload.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const baseUploadsDir = path.join(__dirname, '../../uploads');
+/**
+ * Upload Controller
+ * 
+ * Handles temporary file uploads for email attachments.
+ * Files are stored temporarily and cleaned up after email is sent.
+ */
 
 /**
  * Upload single file (to temp folder)
@@ -37,20 +30,19 @@ export const uploadFile = async (req, res) => {
             });
         }
 
-        const senderEmail = req.user?.email || 'anonymous';
-        const fileInfo = getFileInfo(req.file, senderEmail);
+        const fileInfo = getFileInfo(req.file);
 
         res.json({
             success: true,
             data: {
                 file: {
-                    id: fileInfo.filename,
+                    id: fileInfo.id,
                     name: fileInfo.originalName,
+                    filename: fileInfo.filename,
                     size: fileInfo.size,
                     sizeFormatted: fileInfo.sizeFormatted,
                     type: fileInfo.mimetype,
                     path: fileInfo.path,
-                    uploadedBy: senderEmail,
                     uploadedAt: fileInfo.uploadedAt
                 }
             },
@@ -78,18 +70,16 @@ export const uploadFiles = async (req, res) => {
             });
         }
 
-        const senderEmail = req.user?.email || 'anonymous';
-
         const filesInfo = req.files.map(file => {
-            const info = getFileInfo(file, senderEmail);
+            const info = getFileInfo(file);
             return {
-                id: info.filename,
+                id: info.id,
                 name: info.originalName,
+                filename: info.filename,
                 size: info.size,
                 sizeFormatted: info.sizeFormatted,
                 type: info.mimetype,
                 path: info.path,
-                uploadedBy: senderEmail,
                 uploadedAt: info.uploadedAt
             };
         });
@@ -112,336 +102,37 @@ export const uploadFiles = async (req, res) => {
     }
 };
 
-// =====================================================
-// EMAIL TRACKING WITH ACTUAL EMAIL ADDRESSES
-// =====================================================
-
-/**
- * Record a sent email - Creates folder structure:
- * uploads/senders/{sender}/sent_to/{recipient}/{timestamp}/
- */
-export const recordEmail = async (req, res) => {
-    try {
-        const senderEmail = req.user?.email;
-        if (!senderEmail) {
-            return res.status(401).json({
-                success: false,
-                error: 'Authentication required'
-            });
-        }
-
-        const { recipientEmail, subject, body, attachmentPaths = [] } = req.body;
-
-        if (!recipientEmail) {
-            return res.status(400).json({
-                success: false,
-                error: 'Recipient email is required'
-            });
-        }
-
-        const result = recordSentEmail(senderEmail, recipientEmail, { subject, body }, attachmentPaths);
-
-        res.json({
-            success: true,
-            data: result,
-            message: `Email recorded: ${senderEmail} -> ${recipientEmail}`
-        });
-    } catch (error) {
-        console.error('Error recording email:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to record email',
-            message: error.message
-        });
-    }
-};
-
-/**
- * Record bulk email to multiple recipients
- */
-export const recordBulkEmail = async (req, res) => {
-    try {
-        const senderEmail = req.user?.email;
-        if (!senderEmail) {
-            return res.status(401).json({
-                success: false,
-                error: 'Authentication required'
-            });
-        }
-
-        const { recipientEmails, subject, body, attachmentPaths = [] } = req.body;
-
-        if (!Array.isArray(recipientEmails) || recipientEmails.length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'Recipient emails array is required'
-            });
-        }
-
-        const results = recordBulkSentEmail(senderEmail, recipientEmails, { subject, body }, attachmentPaths);
-
-        res.json({
-            success: true,
-            data: {
-                results,
-                count: results.length
-            },
-            message: `Recorded ${results.length} emails from ${senderEmail}`
-        });
-    } catch (error) {
-        console.error('Error recording bulk email:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to record emails',
-            message: error.message
-        });
-    }
-};
-
-/**
- * Get all emails sent to a specific recipient
- */
-export const getEmailsToRecipient = async (req, res) => {
-    try {
-        const senderEmail = req.user?.email;
-        if (!senderEmail) {
-            return res.status(401).json({
-                success: false,
-                error: 'Authentication required'
-            });
-        }
-
-        const { recipientEmail } = req.params;
-        const emails = getSentEmails(senderEmail, decodeURIComponent(recipientEmail));
-
-        res.json({
-            success: true,
-            data: {
-                sender: senderEmail,
-                recipient: decodeURIComponent(recipientEmail),
-                emails,
-                count: emails.length
-            }
-        });
-    } catch (error) {
-        console.error('Error getting emails:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get emails',
-            message: error.message
-        });
-    }
-};
-
-/**
- * Get all recipients the sender has emailed
- */
-export const getMyRecipients = async (req, res) => {
-    try {
-        const senderEmail = req.user?.email;
-        if (!senderEmail) {
-            return res.status(401).json({
-                success: false,
-                error: 'Authentication required'
-            });
-        }
-
-        const recipients = getSenderRecipients(senderEmail);
-
-        res.json({
-            success: true,
-            data: {
-                sender: senderEmail,
-                recipients,
-                count: recipients.length
-            }
-        });
-    } catch (error) {
-        console.error('Error getting recipients:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get recipients',
-            message: error.message
-        });
-    }
-};
-
-/**
- * Get sender's complete email history
- */
-export const getEmailHistory = async (req, res) => {
-    try {
-        const senderEmail = req.user?.email;
-        if (!senderEmail) {
-            return res.status(401).json({
-                success: false,
-                error: 'Authentication required'
-            });
-        }
-
-        const { limit = 100 } = req.query;
-        const emails = getSenderEmailHistory(senderEmail, parseInt(limit));
-
-        res.json({
-            success: true,
-            data: {
-                sender: senderEmail,
-                emails,
-                count: emails.length
-            }
-        });
-    } catch (error) {
-        console.error('Error getting email history:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get email history',
-            message: error.message
-        });
-    }
-};
-
-// =====================================================
-// CAMPAIGN EMAIL TRACKING
-// =====================================================
-
-/**
- * Record campaign email to recipient - Creates:
- * uploads/campaigns/{campaign}/recipients/{recipient}/{timestamp}/
- */
-export const recordCampaignEmailController = async (req, res) => {
-    try {
-        const senderEmail = req.user?.email;
-        if (!senderEmail) {
-            return res.status(401).json({
-                success: false,
-                error: 'Authentication required'
-            });
-        }
-
-        const { campaignId, recipientEmail } = req.params;
-        const { subject, body, attachmentPaths = [], campaignName } = req.body;
-
-        const result = recordCampaignEmail(
-            campaignId,
-            senderEmail,
-            decodeURIComponent(recipientEmail),
-            { subject, body },
-            attachmentPaths,
-            campaignName
-        );
-
-        res.json({
-            success: true,
-            data: result,
-            message: `Campaign email recorded to ${decodeURIComponent(recipientEmail)}`
-        });
-    } catch (error) {
-        console.error('Error recording campaign email:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to record campaign email',
-            message: error.message
-        });
-    }
-};
-
-/**
- * Get emails sent to a recipient in a campaign
- */
-export const getCampaignRecipientEmailsController = async (req, res) => {
-    try {
-        const { campaignId, recipientEmail } = req.params;
-        const { campaignName } = req.query;
-
-        const emails = getCampaignRecipientEmails(
-            campaignId,
-            decodeURIComponent(recipientEmail),
-            campaignName
-        );
-
-        res.json({
-            success: true,
-            data: {
-                campaignId,
-                recipient: decodeURIComponent(recipientEmail),
-                emails,
-                count: emails.length
-            }
-        });
-    } catch (error) {
-        console.error('Error getting campaign recipient emails:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get emails',
-            message: error.message
-        });
-    }
-};
-
-/**
- * Get all recipients in a campaign with email history
- */
-export const getCampaignRecipientsController = async (req, res) => {
-    try {
-        const { campaignId } = req.params;
-        const { campaignName } = req.query;
-
-        const recipients = getCampaignAllRecipients(campaignId, campaignName);
-
-        res.json({
-            success: true,
-            data: {
-                campaignId,
-                recipients,
-                count: recipients.length,
-                totalEmailsSent: recipients.reduce((sum, r) => sum + r.emailCount, 0)
-            }
-        });
-    } catch (error) {
-        console.error('Error getting campaign recipients:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get recipients',
-            message: error.message
-        });
-    }
-};
-
-// =====================================================
-// FILE MANAGEMENT
-// =====================================================
-
 /**
  * Delete uploaded file
  */
 export const deleteUploadedFile = async (req, res) => {
     try {
         const { filename } = req.params;
-        const senderEmail = req.user?.email;
+        const userId = req.user?.id;
         
-        let filePath = null;
-        
-        // Search in user's temp folder
-        if (senderEmail) {
-            const userUploads = getUserUploads(senderEmail);
-            const foundFile = userUploads.find(f => f.filename === filename);
-            if (foundFile) {
-                filePath = foundFile.path;
-            }
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                error: 'Authentication required'
+            });
         }
 
-        if (!filePath || !fs.existsSync(filePath)) {
+        // Search in user's temp folder
+        const userUploads = getUserUploads(userId);
+        const foundFile = userUploads.find(f => f.filename === filename || f.id === filename);
+        
+        if (!foundFile) {
             return res.status(404).json({
                 success: false,
                 error: 'File not found'
             });
         }
 
-        deleteFile(filePath);
+        const deleted = deleteFile(foundFile.path);
 
         res.json({
-            success: true,
-            message: 'File deleted successfully'
+            success: deleted,
+            message: deleted ? 'File deleted successfully' : 'Failed to delete file'
         });
     } catch (error) {
         console.error('Error deleting file:', error);
@@ -458,16 +149,16 @@ export const deleteUploadedFile = async (req, res) => {
  */
 export const getMyUploads = async (req, res) => {
     try {
-        const senderEmail = req.user?.email;
+        const userId = req.user?.id;
         
-        if (!senderEmail) {
+        if (!userId) {
             return res.status(401).json({
                 success: false,
                 error: 'Authentication required'
             });
         }
 
-        const uploads = getUserUploads(senderEmail);
+        const uploads = getUserUploads(userId);
 
         res.json({
             success: true,
@@ -487,103 +178,32 @@ export const getMyUploads = async (req, res) => {
 };
 
 /**
- * Browse folder structure
+ * Clear all temp uploads for current user
  */
-export const browseUploads = async (req, res) => {
+export const clearMyUploads = async (req, res) => {
     try {
-        const { folderPath } = req.query;
-        const senderEmail = req.user?.email;
+        const userId = req.user?.id;
         
-        let targetPath = baseUploadsDir;
-        
-        if (folderPath) {
-            // Sanitize and validate path
-            const safePath = folderPath.replace(/\.\./g, '').replace(/^[\/\\]/, '');
-            targetPath = path.join(baseUploadsDir, safePath);
-        }
-        
-        // Security: ensure path is within uploads directory
-        if (!targetPath.startsWith(baseUploadsDir)) {
-            return res.status(403).json({
+        if (!userId) {
+            return res.status(401).json({
                 success: false,
-                error: 'Access denied'
+                error: 'Authentication required'
             });
         }
 
-        if (!fs.existsSync(targetPath)) {
-            return res.status(404).json({
-                success: false,
-                error: 'Folder not found'
-            });
-        }
-
-        const stat = fs.statSync(targetPath);
-        
-        if (stat.isFile()) {
-            // Return file info
-            return res.json({
-                success: true,
-                data: {
-                    type: 'file',
-                    name: path.basename(targetPath),
-                    size: stat.size,
-                    modified: stat.mtime
-                }
-            });
-        }
-
-        // List directory contents
-        const items = fs.readdirSync(targetPath).map(item => {
-            const itemPath = path.join(targetPath, item);
-            const itemStat = fs.statSync(itemPath);
-            return {
-                name: item,
-                type: itemStat.isDirectory() ? 'folder' : 'file',
-                size: itemStat.isDirectory() ? null : itemStat.size,
-                modified: itemStat.mtime
-            };
-        });
+        const result = clearUserUploads(userId);
 
         res.json({
             success: true,
-            data: {
-                type: 'folder',
-                path: targetPath.replace(baseUploadsDir, '').replace(/^[\/\\]/, '') || '/',
-                items,
-                count: items.length
-            }
+            data: result,
+            message: `${result.deleted} file(s) cleared`
         });
     } catch (error) {
-        console.error('Error browsing uploads:', error);
+        console.error('Error clearing uploads:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to browse',
+            error: 'Failed to clear uploads',
             message: error.message
         });
     }
-};
-
-// Legacy compatibility exports
-export const createSession = async (req, res) => {
-    res.json({ success: true, data: { session: { sessionId: `session_${Date.now()}` } } });
-};
-
-export const addRecipient = async (req, res) => {
-    res.json({ success: true, data: {} });
-};
-
-export const getMySessions = async (req, res) => {
-    res.json({ success: true, data: { sessions: [], count: 0 } });
-};
-
-export const getSession = async (req, res) => {
-    res.json({ success: true, data: { session: null } });
-};
-
-export const markEmailSent = async (req, res) => {
-    res.json({ success: true, message: 'Use recordEmail endpoint instead' });
-};
-
-export const createEmailRecord = async (req, res) => {
-    return recordEmail(req, res);
 };
