@@ -1,8 +1,17 @@
 import pg from 'pg';
-import { neon } from '@neondatabase/serverless';
+import { neon, neonConfig } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+// Polyfill fetch for Node.js 16 (required for Neon serverless)
+if (!globalThis.fetch) {
+  const { fetch, Headers, Request, Response } = await import('undici');
+  globalThis.fetch = fetch;
+  globalThis.Headers = Headers;
+  globalThis.Request = Request;
+  globalThis.Response = Response;
+}
 
 const { Pool } = pg;
 
