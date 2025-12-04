@@ -6,8 +6,12 @@ dotenv.config();
 
 const { Pool } = pg;
 
-// Check if we should use Neon serverless (for restricted hosts like cPanel)
-const useNeonServerless = process.env.USE_NEON_SERVERLESS === 'true' && process.env.DATABASE_URL;
+// Auto-detect Neon and use serverless mode (HTTPS instead of TCP port 5432)
+// This is needed for hosts like cPanel that block outbound port 5432
+const isNeonUrl = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('neon.tech');
+const useNeonServerless = isNeonUrl && process.env.NODE_ENV === 'production';
+
+console.log(`🔧 Database mode: ${useNeonServerless ? 'Neon Serverless (HTTPS)' : 'Standard PostgreSQL (TCP)'}`);
 
 // Neon serverless SQL function (uses HTTPS, no port 5432 needed)
 const neonSql = useNeonServerless ? neon(process.env.DATABASE_URL) : null;
