@@ -1,18 +1,13 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/components/ui/card';
-import { Button } from '@/components/components/ui/button';
 import { Badge } from '@/components/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/components/ui/tabs';
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
+import { GuidesTabs, FAQSection, QuickActions, ProTips } from '@/components/HowToUse';
 
 /**
  * How To Use Page - Clean, Professional, Compact Guide
  */
 const HowToUse = () => {
-    const navigate = useNavigate();
-
     const guides = {
         'getting-started': {
             title: 'Getting Started',
@@ -95,121 +90,16 @@ const HowToUse = () => {
                     </div>
 
                     {/* Main Content - Tabs */}
-                    <Tabs defaultValue="getting-started" className="space-y-3">
-                        <TabsList className="grid grid-cols-5 w-full h-9">
-                            {Object.entries(guides).map(([key, { title, icon }]) => (
-                                <TabsTrigger key={key} value={key} className="text-xs gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                                    <i className={`${icon} text-sm`}></i>
-                                    <span className="hidden sm:inline">{title}</span>
-                                </TabsTrigger>
-                            ))}
-                        </TabsList>
-
-                        {Object.entries(guides).map(([key, { steps }]) => (
-                            <TabsContent key={key} value={key} className="mt-3">
-                                <Card>
-                                    <CardContent className="p-3">
-                                        <div className="space-y-2">
-                                            {steps.map((step, idx) => (
-                                                <div key={idx} className="flex gap-3 items-start p-2.5 rounded-md hover:bg-muted/50 transition-colors border border-transparent hover:border-border">
-                                                    <div className="w-5 h-5 rounded bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-semibold shrink-0 mt-0.5">
-                                                        {idx + 1}
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <p className="font-medium text-sm leading-tight">{step.title}</p>
-                                                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{step.desc}</p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </TabsContent>
-                        ))}
-                    </Tabs>
+                    <GuidesTabs guides={guides} />
 
                     {/* Bottom Section - 3 Column Grid */}
                     <div className="grid grid-cols-3 gap-3 mt-4">
-                        {/* FAQ */}
-                        <Card className="col-span-2">
-                            <CardHeader className="pb-2 pt-3 px-3">
-                                <CardTitle className="text-xs font-medium flex items-center gap-1.5 text-muted-foreground">
-                                    <i className="ri-question-answer-line"></i>
-                                    FAQ
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="px-3 pb-3 pt-0">
-                                <div className="grid grid-cols-2 gap-2">
-                                    {faqs.map((faq, idx) => (
-                                        <div key={idx} className="p-2 rounded border bg-muted/30">
-                                            <p className="text-xs font-medium leading-tight">{faq.q}</p>
-                                            <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{faq.a}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Quick Actions */}
-                        <Card>
-                            <CardHeader className="pb-2 pt-3 px-3">
-                                <CardTitle className="text-xs font-medium flex items-center gap-1.5 text-muted-foreground">
-                                    <i className="ri-flashlight-line"></i>
-                                    Quick Actions
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="px-3 pb-3 pt-0 space-y-1.5">
-                                <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8" onClick={() => navigate('/compose')}>
-                                    <i className="ri-edit-line mr-2 text-blue-500"></i>Compose Email
-                                </Button>
-                                <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8" onClick={() => navigate('/campaigns/new')}>
-                                    <i className="ri-add-line mr-2 text-green-500"></i>New Campaign
-                                </Button>
-                                <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8" onClick={() => navigate('/templates')}>
-                                    <i className="ri-file-list-3-line mr-2 text-amber-500"></i>Templates
-                                </Button>
-                                <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8" onClick={() => navigate('/dashboard')}>
-                                    <i className="ri-dashboard-line mr-2 text-teal-500"></i>Dashboard
-                                </Button>
-                            </CardContent>
-                        </Card>
+                        <FAQSection faqs={faqs} />
+                        <QuickActions />
                     </div>
 
-                    {/* Pro Tips */}
-                    <div className="mt-3 py-2 px-3 rounded border bg-muted/20 space-y-1.5 text-xs">
-                        <div className="flex items-center gap-2">
-                            <i className="ri-lightbulb-line text-amber-500"></i>
-                            <span className="text-muted-foreground">
-                                <span className="font-medium text-foreground">Variables:</span> Use {'{{name}}'}, {'{{company}}'} in Campaign templates. These are replaced with data from your CSV.
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <i className="ri-file-list-3-line text-green-500"></i>
-                            <span className="text-muted-foreground">
-                                <span className="font-medium text-foreground">Templates:</span> Campaign templates have variables for bulk emails. Compose templates are plain text for one-off emails.
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <i className="ri-attachment-line text-blue-500"></i>
-                            <span className="text-muted-foreground">
-                                <span className="font-medium text-foreground">Attachments:</span> Add up to 5 files (10MB each) in Campaigns.
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* AI Disclaimer */}
-                    <div className="mt-3 py-2.5 px-3 rounded border border-amber-500/30 bg-amber-500/5 text-xs">
-                        <div className="flex items-start gap-2">
-                            <i className="ri-error-warning-line text-amber-500 mt-0.5"></i>
-                            <div>
-                                <span className="font-medium text-amber-600 dark:text-amber-400">AI Generation Disclaimer:</span>
-                                <span className="text-muted-foreground ml-1">
-                                    We use a free-tier AI model to generate email templates. The generated content may not always be accurate or perfectly suited for your needs. 
-                                    <strong className="text-foreground"> Always review and edit AI-generated content before sending.</strong>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+                    {/* Pro Tips & AI Disclaimer */}
+                    <ProTips />
                 </div>
             </main>
         </div>

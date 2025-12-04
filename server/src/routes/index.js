@@ -16,7 +16,7 @@ const router = express.Router();
 router.get('/health', (req, res) => {
   res.json({
     success: true,
-    message: 'MailKar API is running',
+    message: 'mailpal API is running',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
   });

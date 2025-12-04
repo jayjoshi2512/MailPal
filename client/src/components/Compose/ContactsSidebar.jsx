@@ -14,14 +14,21 @@ import { generalContactsAPI } from '@/services/api';
 import ContactsSidebarSkeleton from './ContactsSidebarSkeleton';
 
 /**
- * ContactsSidebar - Contacts list with manual add functionality
- * Features: Search, Select All, Add new contact, Favorite, Delete with confirmation
+ * ContactsSidebar - Personal contacts for Compose page
+ * Features: Search, Multi-select, Bulk favorite/delete, Add new contact, CSV upload
+ * 
+ * Note: This shows only personal contacts from the `contacts` table.
+ * Campaign contacts are stored separately in `campaign_contacts` table.
  */
 const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
     const [contacts, setContacts] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
     const [selectedContacts, setSelectedContacts] = useState(new Set());
+    
+    // Multi-select mode for bulk actions
+    const [multiSelectMode, setMultiSelectMode] = useState(false);
+    const [bulkSelected, setBulkSelected] = useState(new Set());
     
     // Add contact form state
     const [showAddForm, setShowAddForm] = useState(false);
@@ -32,8 +39,9 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
     const fileInputRef = React.useRef(null);
     
     // Delete confirmation modal
-    const [deleteDialog, setDeleteDialog] = useState({ open: false, contact: null });
+    const [deleteDialog, setDeleteDialog] = useState({ open: false, contact: null, isBulk: false });
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isBulkAction, setIsBulkAction] = useState(false);
 
     useEffect(() => {
         fetchContacts();
@@ -42,6 +50,7 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
     const fetchContacts = async (search = '') => {
         try {
             setLoading(true);
+            // Fetch only personal contacts (not campaign contacts)
             const response = await generalContactsAPI.getAll(search);
             if (response.success) {
                 setContacts(response.data.contacts || []);
@@ -58,9 +67,12 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
         return () => clearTimeout(timer);
     }, [searchQuery]);
 
+    // Filter contacts by search query
     const filteredContacts = contacts.filter(contact => {
         const query = searchQuery.toLowerCase();
-        return contact.email.toLowerCase().includes(query) || contact.name?.toLowerCase().includes(query);
+        return contact.email.toLowerCase().includes(query) || 
+               contact.name?.toLowerCase().includes(query) ||
+               contact.company?.toLowerCase().includes(query);
     });
 
     const getInitials = (contact) => {
@@ -77,25 +89,103 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
     };
 
     const handleSelectAll = () => {
-        if (selectedContacts.size === filteredContacts.length && filteredContacts.length > 0) {
-            filteredContacts.forEach(c => onContactRemove?.(c.email));
-            setSelectedContacts(new Set());
+        if (multiSelectMode) {
+            // In multi-select mode, select all for bulk actions
+            if (bulkSelected.size === filteredContacts.length && filteredContacts.length > 0) {
+                setBulkSelected(new Set());
+            } else {
+                setBulkSelected(new Set(filteredContacts.map(c => c.id)));
+            }
         } else {
-            filteredContacts.forEach(c => onContactSelect?.(c));
-            setSelectedContacts(new Set(filteredContacts.map(c => c.id)));
+            // Normal mode - select for email recipients
+            if (selectedContacts.size === filteredContacts.length && filteredContacts.length > 0) {
+                filteredContacts.forEach(c => onContactRemove?.(c.email));
+                setSelectedContacts(new Set());
+            } else {
+                filteredContacts.forEach(c => onContactSelect?.(c));
+                setSelectedContacts(new Set(filteredContacts.map(c => c.id)));
+            }
+        }
+    };
+
+    const toggleBulkSelect = (contactId) => {
+        const newSelected = new Set(bulkSelected);
+        if (newSelected.has(contactId)) {
+            newSelected.delete(contactId);
+        } else {
+            newSelected.add(contactId);
+        }
+        setBulkSelected(newSelected);
+    };
+
+    const handleBulkFavorite = async () => {
+        if (bulkSelected.size === 0) return;
+        
+        setIsBulkAction(true);
+        try {
+            const ids = Array.from(bulkSelected);
+            const response = await generalContactsAPI.bulkFavorite(ids);
+            if (response.success) {
+                toast.success(`${ids.length} contacts updated`);
+                fetchContacts();
+                setBulkSelected(new Set());
+                setMultiSelectMode(false);
+            }
+        } catch (error) {
+            toast.error('Failed to update favorites');
+        } finally {
+            setIsBulkAction(false);
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (bulkSelected.size === 0) return;
+        setDeleteDialog({ open: true, contact: null, isBulk: true });
+    };
+
+    const confirmBulkDelete = async () => {
+        setIsDeleting(true);
+        try {
+            const ids = Array.from(bulkSelected);
+            const response = await generalContactsAPI.bulkDelete(ids);
+            if (response.success) {
+                toast.success(`${ids.length} contacts deleted`);
+                // Remove from selected recipients too
+                ids.forEach(id => {
+                    const contact = contacts.find(c => c.id === id);
+                    if (contact) {
+                        const newSelected = new Set(selectedContacts);
+                        newSelected.delete(id);
+                        setSelectedContacts(newSelected);
+                        onContactRemove?.(contact.email);
+                    }
+                });
+                fetchContacts();
+                setBulkSelected(new Set());
+                setMultiSelectMode(false);
+            }
+        } catch (error) {
+            toast.error('Failed to delete contacts');
+        } finally {
+            setIsDeleting(false);
+            setDeleteDialog({ open: false, contact: null, isBulk: false });
         }
     };
 
     const toggleContactSelection = (contact) => {
-        const newSelected = new Set(selectedContacts);
-        if (newSelected.has(contact.id)) {
-            newSelected.delete(contact.id);
-            onContactRemove?.(contact.email);
+        if (multiSelectMode) {
+            toggleBulkSelect(contact.id);
         } else {
-            newSelected.add(contact.id);
-            onContactSelect?.(contact);
+            const newSelected = new Set(selectedContacts);
+            if (newSelected.has(contact.id)) {
+                newSelected.delete(contact.id);
+                onContactRemove?.(contact.email);
+            } else {
+                newSelected.add(contact.id);
+                onContactSelect?.(contact);
+            }
+            setSelectedContacts(newSelected);
         }
-        setSelectedContacts(newSelected);
     };
 
     const handleAddContact = async () => {
@@ -165,6 +255,11 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
     };
 
     const handleDeleteContact = async () => {
+        if (deleteDialog.isBulk) {
+            await confirmBulkDelete();
+            return;
+        }
+        
         if (!deleteDialog.contact) return;
         
         setIsDeleting(true);
@@ -175,6 +270,7 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
                 const newSelected = new Set(selectedContacts);
                 newSelected.delete(deleteDialog.contact.id);
                 setSelectedContacts(newSelected);
+                onContactRemove?.(deleteDialog.contact.email);
                 fetchContacts();
             } else {
                 toast.error(response.error || 'Failed to delete contact');
@@ -183,7 +279,7 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
             toast.error('Failed to delete contact');
         } finally {
             setIsDeleting(false);
-            setDeleteDialog({ open: false, contact: null });
+            setDeleteDialog({ open: false, contact: null, isBulk: false });
         }
     };
 
@@ -199,17 +295,32 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
         setIsUploading(true);
         try {
             const text = await file.text();
+            
+            // Basic CSV validation - check if it has email column
+            const firstLine = text.split('\n')[0]?.toLowerCase() || '';
+            if (!firstLine.includes('email') && !firstLine.includes('mail')) {
+                toast.error('CSV must have an "email" column');
+                setIsUploading(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                return;
+            }
+            
             const response = await generalContactsAPI.uploadCSV(text);
             
             if (response.success) {
                 const { added, skipped } = response.data;
-                toast.success(`Added ${added} contacts${skipped > 0 ? `, ${skipped} skipped` : ''}`);
+                if (added === 0 && skipped > 0) {
+                    toast.info(`All ${skipped} contacts already exist or were invalid`);
+                } else {
+                    toast.success(`Added ${added} contacts${skipped > 0 ? `, ${skipped} skipped` : ''}`);
+                }
                 fetchContacts();
             } else {
                 toast.error(response.error || 'Failed to upload contacts');
             }
         } catch (error) {
-            toast.error('Failed to upload CSV');
+            console.error('CSV Upload error:', error);
+            toast.error(error.message || 'Failed to upload CSV');
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) {
@@ -252,6 +363,18 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
                             </Button>
                             <Button 
                                 size="sm" 
+                                variant={multiSelectMode ? 'default' : 'ghost'}
+                                className="h-6 w-6 p-0"
+                                onClick={() => {
+                                    setMultiSelectMode(!multiSelectMode);
+                                    setBulkSelected(new Set());
+                                }}
+                                title={multiSelectMode ? 'Exit multi-select' : 'Multi-select mode'}
+                            >
+                                <i className={`ri-${multiSelectMode ? 'close-line' : 'checkbox-multiple-line'} text-sm`}></i>
+                            </Button>
+                            <Button 
+                                size="sm" 
                                 variant="ghost" 
                                 className="h-6 w-6 p-0"
                                 onClick={() => setShowAddForm(!showAddForm)}
@@ -260,6 +383,33 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
                             </Button>
                         </div>
                     </div>
+
+                    {/* Bulk Actions Bar */}
+                    {multiSelectMode && (
+                        <div className="flex items-center gap-1 mb-2 p-1.5 bg-muted/50 rounded-lg">
+                            <span className="text-[10px] text-muted-foreground flex-1">
+                                {bulkSelected.size} selected
+                            </span>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-[10px]"
+                                onClick={handleBulkFavorite}
+                                disabled={bulkSelected.size === 0 || isBulkAction}
+                            >
+                                <i className="ri-star-line mr-1"></i>Favorite
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-[10px] text-red-600 hover:text-red-700"
+                                onClick={handleBulkDelete}
+                                disabled={bulkSelected.size === 0 || isBulkAction}
+                            >
+                                <i className="ri-delete-bin-line mr-1"></i>Delete
+                            </Button>
+                        </div>
+                    )}
 
                     {/* Add Contact Form */}
                     {showAddForm && (
@@ -305,8 +455,8 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
                     </div>
 
                     <Button size="sm" variant="outline" className="w-full h-7 text-xs" onClick={handleSelectAll} disabled={filteredContacts.length === 0}>
-                        <i className={`ri-${selectedContacts.size === filteredContacts.length && filteredContacts.length > 0 ? 'checkbox-line' : 'checkbox-blank-line'} mr-1`}></i>
-                        Select All
+                        <i className={`ri-${(multiSelectMode ? bulkSelected.size : selectedContacts.size) === filteredContacts.length && filteredContacts.length > 0 ? 'checkbox-line' : 'checkbox-blank-line'} mr-1`}></i>
+                        {multiSelectMode ? 'Select All for Bulk' : 'Select All'}
                     </Button>
                 </div>
 
@@ -331,36 +481,57 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
                         <div className="grid grid-cols-4 gap-1.5">
                             {filteredContacts.map((contact) => {
                                 const isSelected = selectedContacts.has(contact.id);
+                                const isBulkSelected = bulkSelected.has(contact.id);
                                 const isFavorite = contact.is_favorite;
                                 return (
                                     <div
                                         key={contact.id}
-                                        className={`group relative flex flex-col items-center p-1.5 rounded-lg cursor-pointer transition-all ${isSelected ? 'bg-blue-100 dark:bg-blue-900/30 ring-2 ring-blue-500' : 'hover:bg-accent'}`}
+                                        className={`group relative flex flex-col items-center p-1.5 rounded-lg cursor-pointer transition-all ${
+                                            multiSelectMode 
+                                                ? (isBulkSelected ? 'bg-amber-100 dark:bg-amber-900/30 ring-2 ring-amber-500' : 'hover:bg-accent')
+                                                : (isSelected ? 'bg-blue-100 dark:bg-blue-900/30 ring-2 ring-blue-500' : 'hover:bg-accent')
+                                        }`}
                                         title={contact.email}
                                     >
-                                        {/* Favorite button - top left */}
-                                        <button
-                                            onClick={(e) => handleToggleFavorite(e, contact)}
-                                            className={`absolute -top-1 -left-1 w-4 h-4 rounded-full items-center justify-center z-20 transition-all ${isFavorite ? 'flex bg-yellow-400' : 'hidden group-hover:flex bg-gray-400 hover:bg-yellow-400'}`}
-                                            title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                                        >
-                                            <i className={`ri-star-${isFavorite ? 'fill' : 'line'} text-white text-[9px]`}></i>
-                                        </button>
                                         
-                                        {/* Delete button - top right */}
-                                        <button
-                                            onClick={(e) => openDeleteDialog(e, contact)}
-                                            className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 hover:bg-red-600 rounded-full items-center justify-center z-20 hidden group-hover:flex transition-all"
-                                            title="Delete contact"
-                                        >
-                                            <i className="ri-delete-bin-line text-white text-[9px]"></i>
-                                        </button>
-                                        
-                                        {/* Selection indicator */}
-                                        {isSelected && !isFavorite && (
-                                            <div className="absolute -top-1 -left-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center z-10">
-                                                <i className="ri-check-line text-white text-[10px]"></i>
+                                        {/* Multi-select checkbox - top left in multi-select mode */}
+                                        {multiSelectMode ? (
+                                            <div 
+                                                className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center z-20 transition-all ${
+                                                    isBulkSelected ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'
+                                                }`}
+                                            >
+                                                <i className={`ri-${isBulkSelected ? 'check-line' : 'checkbox-blank-line'} text-white text-[9px]`}></i>
                                             </div>
+                                        ) : (
+                                            <>
+                                                {/* Favorite button - top left */}
+                                                <button
+                                                    onClick={(e) => handleToggleFavorite(e, contact)}
+                                                    className={`absolute -top-1 -left-1 w-4 h-4 rounded-full items-center justify-center z-20 transition-all ${isFavorite ? 'flex bg-yellow-400' : 'hidden group-hover:flex bg-gray-400 hover:bg-yellow-400'}`}
+                                                    title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                                                >
+                                                    <i className={`ri-star-${isFavorite ? 'fill' : 'line'} text-white text-[9px]`}></i>
+                                                </button>
+                                                
+                                                {/* Selection indicator when no favorite badge */}
+                                                {isSelected && !isFavorite && (
+                                                    <div className="absolute -top-1 -left-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center z-10">
+                                                        <i className="ri-check-line text-white text-[10px]"></i>
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                        
+                                        {/* Delete button - top right (only in normal mode) */}
+                                        {!multiSelectMode && (
+                                            <button
+                                                onClick={(e) => openDeleteDialog(e, contact)}
+                                                className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 hover:bg-red-600 rounded-full items-center justify-center z-20 hidden group-hover:flex transition-all"
+                                                title="Delete contact"
+                                            >
+                                                <i className="ri-delete-bin-line text-white text-[9px]"></i>
+                                            </button>
                                         )}
                                         
                                         <div 
@@ -384,25 +555,32 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
             </div>
 
             {/* Delete Confirmation Modal */}
-            <Dialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog({ open: false, contact: null })}>
+            <Dialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog({ open: false, contact: null, isBulk: false })}>
                 <DialogContent className="sm:max-w-[400px]">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-red-600">
                             <i className="ri-delete-bin-line"></i>
-                            Delete Contact
+                            {deleteDialog.isBulk ? 'Delete Selected Contacts' : 'Delete Contact'}
                         </DialogTitle>
                         <DialogDescription className="pt-2">
-                            Are you sure you want to delete <strong>{deleteDialog.contact?.name || deleteDialog.contact?.email}</strong>?
+                            {deleteDialog.isBulk ? (
+                                <>Are you sure you want to delete <strong>{bulkSelected.size} contacts</strong>?</>
+                            ) : (
+                                <>Are you sure you want to delete <strong>{deleteDialog.contact?.name || deleteDialog.contact?.email}</strong>?</>
+                            )}
                             <br />
                             <span className="text-xs text-muted-foreground mt-1 block">
-                                This action cannot be undone.
+                                {deleteDialog.isBulk 
+                                    ? 'These contacts will be removed from your list.'
+                                    : 'This contact will be removed from your list.'
+                                }
                             </span>
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter className="gap-2 sm:gap-0">
                         <Button
                             variant="outline"
-                            onClick={() => setDeleteDialog({ open: false, contact: null })}
+                            onClick={() => setDeleteDialog({ open: false, contact: null, isBulk: false })}
                             disabled={isDeleting}
                         >
                             Cancel
@@ -415,7 +593,7 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
                             {isDeleting ? (
                                 <><i className="ri-loader-4-line animate-spin mr-2"></i>Deleting...</>
                             ) : (
-                                <><i className="ri-delete-bin-line mr-2"></i>Delete</>
+                                <><i className="ri-delete-bin-line mr-2"></i>Delete{deleteDialog.isBulk ? ` (${bulkSelected.size})` : ''}</>
                             )}
                         </Button>
                     </DialogFooter>

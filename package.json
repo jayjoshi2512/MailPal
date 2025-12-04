@@ -1,7 +1,7 @@
 {
-  "name": "mailkar",
+  "name": "mailpal",
   "version": "1.0.0",
-  "description": "MailKar - Email Campaign Management Platform",
+  "description": "MailPal - Email Campaign Management Platform",
   "private": true,
   "workspaces": [
     "client",

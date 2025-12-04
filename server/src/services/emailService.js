@@ -3,6 +3,7 @@ import { query } from '../config/database.js';
 import config from '../config/index.js';
 import logger from '../config/logger.js';
 import { getValidOAuth2Client } from '../controllers/authController.js';
+import { recordSentEmail, recordCampaignEmail } from '../middleware/upload.js';
 
 /**
  * Email Service - Handles sending emails via Gmail API
@@ -288,6 +289,21 @@ export const sendEmail = async (userId, to, subject, body, campaignId = null, co
 
         logger.info(`Tracked email in database - Campaign: ${campaignId}, Recipient: ${to}`);
 
+        // Also record to file system for easy browsing
+        // Creates: uploads/senders/{sender}/sent_to/{recipient}/{timestamp}/
+        try {
+            const attachmentPaths = attachments.map(a => a.path).filter(Boolean);
+            recordSentEmail(userEmail, to, {
+                subject,
+                body,
+                messageId: response.data.id
+            }, attachmentPaths);
+            logger.info(`Recorded email to file system: ${userEmail} -> ${to}`);
+        } catch (fileError) {
+            // Non-critical error - don't fail the send
+            logger.error('Error recording email to file system:', fileError);
+        }
+
         // Update contact status if contact exists
         if (contactId) {
             await query(
@@ -461,7 +477,7 @@ export const sendAdminCode = async (adminEmail, code) => {
         const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
         // Create the email
-        const subject = 'MailKar Admin Authentication Code';
+        const subject = 'MailPal Admin Authentication Code';
         const body = `
 Your admin authentication code is:
 
@@ -473,7 +489,7 @@ This code will expire in 10 minutes.
 If you did not request this code, please ignore this email.
 
 ---
-MailKar Admin System
+MailPal Admin System
         `.trim();
 
         // Create email message

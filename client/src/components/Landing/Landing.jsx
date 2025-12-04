@@ -372,13 +372,29 @@ const Landing = () => {
 
             {/* Footer */}
             <footer className="py-6 border-t">
+                {/* Disclaimer */}
+                <div className="mb-6 p-4 bg-muted/30 rounded-lg border border-border/50">
+                    <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
+                            <i className="ri-information-line text-amber-600 dark:text-amber-400"></i>
+                        </div>
+                        <div>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                <span className="font-medium text-foreground">Disclaimer:</span> This project was primarily developed using AI-assisted coding (approximately 80-90% vibe coded). 
+                                While we strive for quality, there may be occasional bugs or unexpected behaviors. 
+                                We appreciate your understanding and welcome feedback to help improve the platform.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
                         <i className="ri-send-plane-fill text-lg"></i>
-                        <span className="font-bold font-maorin">MailKar</span>
+                        <span className="font-bold font-maorin">MailPal</span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                        © {new Date().getFullYear()} MailKar. Built for cold emailers.
+                        © {new Date().getFullYear()} MailPal. Built for cold emailers.
                     </p>
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <a href="#" className="hover:text-foreground transition-colors">Privacy</a>

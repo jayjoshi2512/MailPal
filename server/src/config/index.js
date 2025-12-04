@@ -12,7 +12,7 @@ export default {
   database: {
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 5432,
-    name: process.env.DB_NAME || 'mailkar',
+    name: process.env.DB_NAME || 'MailPal',
     user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD,
   },
@@ -32,7 +32,7 @@ export default {
 
   // Email Configuration
   email: {
-    senderName: process.env.EMAIL_SENDER_NAME || 'MailKar',
+    senderName: process.env.EMAIL_SENDER_NAME || 'MailPal',
   },
 
   // Rate Limiting Configuration

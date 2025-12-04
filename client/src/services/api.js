@@ -214,6 +214,14 @@ export const generalContactsAPI = {
     },
     
     /**
+     * Get all contacts with source info (compose + campaign)
+     */
+    getAllWithSource: async (search = '') => {
+        const params = search ? { search, includeAll: true } : { includeAll: true };
+        return apiClient.get('/contacts', { params });
+    },
+    
+    /**
      * Create a single contact
      */
     create: async (contactData) => {
@@ -242,48 +250,129 @@ export const generalContactsAPI = {
     },
     
     /**
+     * Bulk toggle favorite status
+     */
+    bulkFavorite: async (contactIds) => {
+        return apiClient.post('/contacts/bulk-favorite', { ids: contactIds });
+    },
+    
+    /**
      * Delete contact
      */
     delete: async (contactId) => {
         return apiClient.delete(`/contacts/${contactId}`);
     },
+    
+    /**
+     * Bulk delete contacts
+     */
+    bulkDelete: async (contactIds) => {
+        return apiClient.post('/contacts/bulk-delete', { ids: contactIds });
+    },
 };
 
 // ========================================
-// UPLOAD API
+// UPLOAD API (Advanced Upload System)
+// ========================================
+// Folder Structure:
+// uploads/
+// ├── users/{userId}/
+// │   ├── compose/{timestamp}/         <- Current compose session
+// │   │   ├── metadata.json
+// │   │   └── attachments/
+// │   ├── history/{timestamp}/         <- Past sent emails
+// │   │   ├── email.json
+// │   │   └── attachments/
+// │   └── contacts/uploaded_csvs/
+// ├── campaigns/{campaignId}/
+// │   ├── metadata.json
+// │   ├── attachments/
+// │   └── recipients/{recipientEmail}/
+// │       ├── status.json
+// │       └── sent_{timestamp}.json
+// └── temp/
 // ========================================
 
 export const uploadAPI = {
+    // ========== BASIC UPLOAD ==========
+    
     /**
-     * Upload single file
+     * Upload single file (general purpose)
      */
-    uploadSingle: async (file, onUploadProgress) => {
+    uploadFile: async (file, onUploadProgress) => {
         const formData = new FormData();
         formData.append('file', file);
         
         return apiClient.post('/upload/single', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
+            headers: { 'Content-Type': 'multipart/form-data' },
             onUploadProgress,
         });
     },
     
     /**
-     * Upload multiple files
+     * Upload multiple files (general purpose)
      */
-    uploadMultiple: async (files, onUploadProgress) => {
+    uploadFiles: async (files, onUploadProgress) => {
         const formData = new FormData();
-        files.forEach(file => {
-            formData.append('files', file);
-        });
+        files.forEach(file => formData.append('files', file));
         
         return apiClient.post('/upload/multiple', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
+            headers: { 'Content-Type': 'multipart/form-data' },
             onUploadProgress,
         });
+    },
+    
+    // ========== CAMPAIGN UPLOADS ==========
+    
+    /**
+     * Upload files for a campaign
+     * Files go to: uploads/campaigns/{campaignId}/attachments/
+     */
+    uploadToCampaign: async (campaignId, files, onUploadProgress) => {
+        const formData = new FormData();
+        const fileArray = Array.isArray(files) ? files : [files];
+        fileArray.forEach(file => formData.append('files', file));
+        
+        return apiClient.post(`/upload/campaign/${campaignId}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress,
+        });
+    },
+    
+    /**
+     * Get all uploads for a campaign
+     */
+    getCampaignUploads: async (campaignId) => {
+        return apiClient.get(`/upload/campaign/${campaignId}`);
+    },
+    
+    /**
+     * Log when an email is sent to a recipient in a campaign
+     * Creates: uploads/campaigns/{campaignId}/recipients/{email}/sent_{timestamp}.json
+     */
+    logRecipientEmail: async (campaignId, recipientEmail, emailData) => {
+        return apiClient.post(
+            `/upload/campaign/${campaignId}/recipients/${encodeURIComponent(recipientEmail)}/log`,
+            emailData
+        );
+    },
+    
+    /**
+     * Get history for a specific recipient in a campaign
+     */
+    getRecipientHistory: async (campaignId, recipientEmail) => {
+        return apiClient.get(
+            `/upload/campaign/${campaignId}/recipients/${encodeURIComponent(recipientEmail)}/history`
+        );
+    },
+    
+    // ========== USER UPLOADS ==========
+    
+    /**
+     * Get all uploads for current user
+     */
+    getMyUploads: async () => {
+        return apiClient.get('/upload/my-uploads');
     },
     
     /**

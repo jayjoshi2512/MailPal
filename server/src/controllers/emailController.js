@@ -33,13 +33,17 @@ const getOrCreateManualCampaign = async (userId) => {
 };
 
 /**
- * Get or create contact for email recipient
+ * Get or create contact for email recipient (compose contacts)
  */
 const getOrCreateContact = async (userId, email, name = null) => {
   try {
-    // Check if contact exists
+    // Check if contact exists (only compose contacts, not campaign contacts)
     let result = await query(
-      `SELECT id FROM contacts WHERE user_id = $1 AND email = $2 LIMIT 1`,
+      `SELECT id FROM contacts 
+       WHERE user_id = $1 AND email = $2 
+       AND (source = 'compose' OR source IS NULL)
+       AND (is_active = true OR is_active IS NULL)
+       LIMIT 1`,
       [userId, email]
     );
 
@@ -47,10 +51,10 @@ const getOrCreateContact = async (userId, email, name = null) => {
       return result.rows[0].id;
     }
 
-    // Create contact
+    // Create contact with source='compose'
     result = await query(
-      `INSERT INTO contacts (user_id, email, name, status, created_at, updated_at) 
-       VALUES ($1, $2, $3, 'active', NOW(), NOW()) 
+      `INSERT INTO contacts (user_id, email, name, status, source, is_active, created_at, updated_at) 
+       VALUES ($1, $2, $3, 'active', 'compose', true, NOW(), NOW()) 
        RETURNING id`,
       [userId, email, name || email.split('@')[0]]
     );

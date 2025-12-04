@@ -113,7 +113,7 @@ const ComposeEnhanced = () => {
         navigate('/', { replace: true });
     }, [logout, navigate]);
 
-    // Handle file selection with immediate upload (like Gmail)
+    // Handle file selection with simple upload
     const handleFileChange = useCallback(async (e) => {
         const files = Array.from(e.target.files || []);
         
@@ -149,7 +149,7 @@ const ComposeEnhanced = () => {
         setIsUploading(true);
         
         try {
-            // Upload files one by one with individual progress tracking
+            // Upload files using simple upload API
             const uploadedFilesList = [];
             
             for (let i = 0; i < files.length; i++) {
@@ -157,7 +157,7 @@ const ComposeEnhanced = () => {
                 const progressIndex = startIndex + i;
                 
                 try {
-                    const uploadResult = await uploadAPI.uploadSingle(file, (progressEvent) => {
+                    const uploadResult = await uploadAPI.uploadFile(file, (progressEvent) => {
                         const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
                         setUploadProgress(prev => ({
                             ...prev,
@@ -167,7 +167,6 @@ const ComposeEnhanced = () => {
                     
                     if (uploadResult.success && uploadResult.data.file) {
                         uploadedFilesList.push(uploadResult.data.file);
-                        // Mark as complete
                         setUploadProgress(prev => ({
                             ...prev,
                             [progressIndex]: 100
@@ -176,17 +175,14 @@ const ComposeEnhanced = () => {
                 } catch (fileError) {
                     console.error(`Failed to upload ${file.name}:`, fileError);
                     toast.error(`Failed to upload ${file.name}`);
-                    // Remove failed file
                     removeAttachment(progressIndex);
                 }
             }
             
             if (uploadedFilesList.length > 0) {
-                // Store uploaded file metadata
                 setUploadedFiles(prev => [...prev, ...uploadedFilesList]);
                 toast.success(`${uploadedFilesList.length} file(s) uploaded successfully`);
                 
-                // Clear progress after a short delay
                 setTimeout(() => {
                     setUploadProgress({});
                 }, 1000);
@@ -200,7 +196,7 @@ const ComposeEnhanced = () => {
 
         // Reset input
         e.target.value = '';
-    }, [attachments.length, addAttachments, removeAttachment, toast]);
+    }, [attachments.length, addAttachments, removeAttachment]);
 
     // Trigger file input
     const handleAttachClick = useCallback(() => {
@@ -257,7 +253,7 @@ const ComposeEnhanced = () => {
         setIsSending(true);
 
         try {
-            // Prepare email data with already uploaded files
+            // Prepare email data with uploaded files
             const emailData = {
                 to: toEmails,
                 subject,
@@ -307,7 +303,7 @@ const ComposeEnhanced = () => {
         } finally {
             setIsSending(false);
         }
-    }, [toEmails, subject, body, uploadedFiles, isUploading, clearRecipients, clearAttachments, navigate]);
+    }, [toEmails, subject, body, uploadedFiles, isUploading, clearRecipients, clearAttachments, navigate, refreshHistory]);
 
     // Handle contact selection from sidebar
     const handleContactSelect = useCallback((contact) => {

@@ -1,7 +1,7 @@
 {
-  "name": "mailkar-server",
+  "name": "mailpal-server",
   "version": "1.0.0",
-  "description": "MailKar Server - Email Campaign Management Backend",
+  "description": "MailPal Server - Email Campaign Management Backend",
   "main": "src/server.js",
   "type": "module",
   "scripts": {

@@ -6,7 +6,9 @@ import {
   uploadContactsCSV,
   deleteContact,
   updateContact,
-  toggleFavorite
+  toggleFavorite,
+  bulkFavorite,
+  bulkDelete
 } from '../controllers/contactsController.js';
 
 const router = express.Router();
@@ -22,6 +24,12 @@ router.post('/', createContact);
 
 // POST /api/contacts/upload-csv - Upload contacts from CSV
 router.post('/upload-csv', uploadContactsCSV);
+
+// POST /api/contacts/bulk-favorite - Bulk toggle favorite
+router.post('/bulk-favorite', bulkFavorite);
+
+// POST /api/contacts/bulk-delete - Bulk delete contacts
+router.post('/bulk-delete', bulkDelete);
 
 // PUT /api/contacts/:id - Update a contact
 router.put('/:id', updateContact);

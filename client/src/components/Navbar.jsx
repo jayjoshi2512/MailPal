@@ -22,7 +22,7 @@ const Navbar = ({ showSidebar = false }) => {
                     onClick={() => navigate('/')}
                 >
                     <i className="ri-send-plane-fill text-xl md:text-2xl text-foreground"></i>
-                    <span className="font-bold font-maorin text-xl md:text-2xl">MailKar</span>
+                    <span className="font-bold font-maorin text-xl md:text-2xl">MailPal</span>
                 </div>
 
                 <div className="flex items-center gap-2">
