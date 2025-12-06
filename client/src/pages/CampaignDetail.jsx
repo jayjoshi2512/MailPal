@@ -146,6 +146,7 @@ const CampaignDetail = () => {
             sessionStorage.removeItem(`campaign_${id}_recipients`);
             setRecipients([]);
             toast.success('Campaign completed!');
+            setTimeout(() => navigate('/dashboard'), 2000);
         } catch {
             toast.error('Campaign failed');
         } finally {

@@ -300,7 +300,7 @@ const ComposeEnhanced = () => {
                     }));
 
                     if (finalResult.sent > 0) {
-                        toast.success(`✅ ${finalResult.sent} emails sent successfully${finalResult.failed > 0 ? `, ${finalResult.failed} failed` : ''}`);
+                        toast.success(`${finalResult.sent} emails sent successfully${finalResult.failed > 0 ? `, ${finalResult.failed} failed` : ''}`);
                     } else {
                         toast.error(`Failed to send emails. ${finalResult.errors?.[0]?.error || 'Unknown error'}`);
                     }

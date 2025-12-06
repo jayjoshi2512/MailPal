@@ -150,7 +150,7 @@ const NewCampaign = () => {
                     continue;
                 }
                 
-                const result = await uploadAPI.uploadSingle(file);
+                const result = await uploadAPI.uploadFile(file);
                 if (result.success) {
                     setAttachments(prev => [...prev, {
                         filename: result.data.filename,
