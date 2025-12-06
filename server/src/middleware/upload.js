@@ -104,6 +104,7 @@ export const deleteFiles = () => {};
 export const cleanupTempFiles = () => {};
 export const cleanupAfterSend = () => {};
 export const cleanupOldTempFiles = () => {};
+export const clearUserUploads = () => ({ deleted: 0 });
 export const getTempUploadDir = () => ({ tempDir: null, timestamp: null });
 export const getTempDir = () => null;
 export const recordSentEmail = () => {};

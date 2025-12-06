@@ -86,9 +86,11 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
             const response = await generalContactsAPI.getAll(search);
             if (response.success) {
                 setContacts(response.data.contacts || []);
+            } else {
+                toast.error(response.error || 'Failed to load contacts');
             }
         } catch (error) {
-            toast.error('Failed to load contacts');
+            toast.error(error.message || 'Failed to load contacts');
         } finally {
             setLoading(false);
         }
@@ -124,11 +126,19 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
             }
         } else {
             if (selectedContacts.size === filteredContacts.length && filteredContacts.length > 0) {
-                filteredContacts.forEach(c => onContactRemove?.(c.email));
+                const removeCount = filteredContacts.length;
+                filteredContacts.forEach(c => onContactRemove?.(c.email, true));
                 setSelectedContacts(new Set());
+                if (removeCount > 0) {
+                    toast.info(`Removed ${removeCount} contact${removeCount > 1 ? 's' : ''} from recipients`);
+                }
             } else {
-                filteredContacts.forEach(c => onContactSelect?.(c));
+                const addCount = filteredContacts.length;
+                filteredContacts.forEach(c => onContactSelect?.(c, true));
                 setSelectedContacts(new Set(filteredContacts.map(c => c._id || c.id)));
+                if (addCount > 0) {
+                    toast.success(`Added ${addCount} contact${addCount > 1 ? 's' : ''} to recipients`);
+                }
             }
         }
     };
@@ -203,10 +213,10 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
             const newSelected = new Set(selectedContacts);
             if (newSelected.has(contactId)) {
                 newSelected.delete(contactId);
-                onContactRemove?.(contact.email);
+                onContactRemove?.(contact.email, false);
             } else {
                 newSelected.add(contactId);
-                onContactSelect?.(contact);
+                onContactSelect?.(contact, false);
             }
             setSelectedContacts(newSelected);
         }
@@ -320,16 +330,36 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
             const text = await file.text();
             const firstLine = text.split('\n')[0]?.toLowerCase() || '';
             if (!firstLine.includes('email') && !firstLine.includes('mail')) {
-                toast.error('CSV must have an "email" column');
+                toast.error('CSV must have an "email" column. Check the format guide.');
+                setShowCSVHelp(true);
                 setIsUploading(false);
                 if (fileInputRef.current) fileInputRef.current.value = '';
                 return;
             }
             const response = await generalContactsAPI.uploadCSV(text);
             if (response.success) {
-                const { added, skipped } = response.data;
-                toast.success(`Added ${added} contacts${skipped > 0 ? `, ${skipped} skipped` : ''}`);
-                fetchContacts();
+                const { added, reactivated, skipped, total } = response.data;
+                
+                const successCount = (added || 0) + (reactivated || 0);
+                
+                if (successCount > 0) {
+                    let message = '';
+                    if (added > 0 && reactivated > 0) {
+                        message = `Added ${added} new contact${added > 1 ? 's' : ''}, reactivated ${reactivated}`;
+                    } else if (added > 0) {
+                        message = `Added ${added} contact${added > 1 ? 's' : ''}`;
+                    } else if (reactivated > 0) {
+                        message = `Reactivated ${reactivated} contact${reactivated > 1 ? 's' : ''}`;
+                    }
+                    toast.success(message);
+                    fetchContacts();
+                }
+                
+                if (skipped > 0 && successCount > 0) {
+                    toast.info(`Skipped ${skipped} duplicate contact${skipped > 1 ? 's' : ''}`);
+                } else if (skipped > 0 && successCount === 0) {
+                    toast.warning(`All ${total} contacts already exist`);
+                }
             } else {
                 toast.error(response.error || 'Failed to upload contacts');
             }
@@ -391,18 +421,18 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
     const toggleCampaignContactSelection = (contact) => {
         if (campaignContactsAdded.has(contact.email)) {
             // Remove
-            onContactRemove?.(contact.email);
+            onContactRemove?.(contact.email, false);
             setCampaignContactsAdded(prev => {
                 const newSet = new Set(prev);
                 newSet.delete(contact.email);
                 return newSet;
             });
-            toast.info(`Removed ${contact.email}`);
+            toast.info(`Removed ${contact.name || contact.email} from recipients`);
         } else {
             // Add
-            onContactSelect?.(contact);
+            onContactSelect?.(contact, false);
             setCampaignContactsAdded(prev => new Set(prev).add(contact.email));
-            toast.success(`Added ${contact.email}`);
+            toast.success(`Added ${contact.name || contact.email} to recipients`);
         }
     };
 
@@ -413,24 +443,31 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
         
         if (allAdded) {
             // Remove all
+            const removeCount = filteredCampaignContacts.length;
             filteredCampaignContacts.forEach(c => {
-                onContactRemove?.(c.email);
+                onContactRemove?.(c.email, true);
                 setCampaignContactsAdded(prev => {
                     const newSet = new Set(prev);
                     newSet.delete(c.email);
                     return newSet;
                 });
             });
-            toast.success(`Removed ${filteredCampaignContacts.length} contacts`);
+            if (removeCount > 0) {
+                toast.info(`Removed ${removeCount} contact${removeCount > 1 ? 's' : ''} from recipients`);
+            }
         } else {
-            // Add all
+            // Add all not yet added
+            let addCount = 0;
             filteredCampaignContacts.forEach(c => {
                 if (!campaignContactsAdded.has(c.email)) {
-                    onContactSelect?.(c);
+                    onContactSelect?.(c, true);
                     setCampaignContactsAdded(prev => new Set(prev).add(c.email));
+                    addCount++;
                 }
             });
-            toast.success(`Added ${filteredCampaignContacts.length} contacts`);
+            if (addCount > 0) {
+                toast.success(`Added ${addCount} contact${addCount > 1 ? 's' : ''} to recipients`);
+            }
         }
     };
 
@@ -479,6 +516,13 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
                                     onChange={handleCSVUpload}
                                     className="hidden"
                                 />
+                                <Button 
+                                    size="sm" variant="ghost" className="h-6 w-6 p-0"
+                                    onClick={() => setShowCSVHelp(true)}
+                                    title="CSV Format Help"
+                                >
+                                    <i className="ri-information-line text-sm"></i>
+                                </Button>
                                 <Button 
                                     size="sm" variant="ghost" className="h-6 w-6 p-0"
                                     onClick={() => fileInputRef.current?.click()}
@@ -543,8 +587,19 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
                     {/* Contacts List */}
                     <div className="flex-1 overflow-y-auto scrollbar-hide p-2">
                         {filteredContacts.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground">
-                                <p className="text-xs">No contacts found</p>
+                            <div className="text-center py-8 px-4 text-muted-foreground">
+                                <i className="ri-contacts-book-line text-4xl mb-2 opacity-30"></i>
+                                <p className="text-xs font-medium mb-1">No contacts yet</p>
+                                <p className="text-[10px] opacity-70">Add contacts manually or upload a CSV file</p>
+                                <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className="mt-3 h-7 text-xs"
+                                    onClick={() => setShowCSVHelp(true)}
+                                >
+                                    <i className="ri-file-list-line mr-1"></i>
+                                    CSV Format Guide
+                                </Button>
                             </div>
                         ) : (
                             <div className="grid grid-cols-4 gap-1.5">
@@ -693,6 +748,73 @@ const ContactsSidebar = ({ onContactSelect, onContactRemove }) => {
                     </div>
                 </TabsContent>
             </Tabs>
+
+            {/* CSV Format Help Dialog */}
+            <Dialog open={showCSVHelp} onOpenChange={setShowCSVHelp}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <i className="ri-file-list-3-line"></i>
+                            CSV Upload Format
+                        </DialogTitle>
+                        <DialogDescription>
+                            Required format for uploading contacts
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4 py-2">
+                        {/* Required Field */}
+                        <div className="space-y-2">
+                            <h4 className="text-sm font-semibold">Required Field</h4>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <code className="px-2 py-1 bg-muted rounded text-xs font-mono">email</code>
+                                <span className="text-xs text-muted-foreground">or</span>
+                                <code className="px-2 py-1 bg-muted rounded text-xs font-mono">e-mail</code>
+                                <span className="text-xs text-muted-foreground">or</span>
+                                <code className="px-2 py-1 bg-muted rounded text-xs font-mono">mail</code>
+                            </div>
+                            <p className="text-xs text-muted-foreground">At least one email column is required</p>
+                        </div>
+
+                        {/* Optional Fields */}
+                        <div className="space-y-2">
+                            <h4 className="text-sm font-semibold">Optional Fields</h4>
+                            <div className="flex flex-wrap gap-2">
+                                <code className="px-2 py-1 bg-muted rounded text-xs font-mono">name</code>
+                                <code className="px-2 py-1 bg-muted rounded text-xs font-mono">first_name</code>
+                                <code className="px-2 py-1 bg-muted rounded text-xs font-mono">last_name</code>
+                                <code className="px-2 py-1 bg-muted rounded text-xs font-mono">company</code>
+                            </div>
+                        </div>
+
+                        {/* Example */}
+                        <div className="space-y-2">
+                            <h4 className="text-sm font-semibold">Example Format</h4>
+                            <div className="bg-muted p-3 rounded-lg">
+                                <pre className="text-xs font-mono overflow-x-auto">{`email,name,company
+john@example.com,John Doe,Acme Inc
+jane@test.com,Jane Smith,Tech Corp`}</pre>
+                            </div>
+                        </div>
+
+                        {/* Important Notes */}
+                        <div className="space-y-2 pt-2 border-t">
+                            <h4 className="text-sm font-semibold">Important</h4>
+                            <ul className="space-y-1 text-xs text-muted-foreground">
+                                <li>• First row must contain column headers</li>
+                                <li>• Duplicate emails will be skipped</li>
+                                <li>• Invalid email formats will be skipped</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <DialogFooter>
+                        <Button onClick={() => setShowCSVHelp(false)}>
+                            Got it
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Delete Dialog */}
             <Dialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog({ open: false, contact: null, isBulk: false })}>

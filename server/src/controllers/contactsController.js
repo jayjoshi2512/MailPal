@@ -95,28 +95,45 @@ export const createContact = async (req, res) => {
       });
     }
 
-    // Check if contact already exists
-    const existingContact = await Contact.findOne({ userId, email, isActive: true });
+    // Check if contact already exists (active)
+    const existingActiveContact = await Contact.findOne({ userId, email, isActive: true });
 
-    if (existingContact) {
+    if (existingActiveContact) {
       return res.status(400).json({
         success: false,
         error: 'Contact with this email already exists'
       });
     }
 
-    // Create contact
-    const contact = await Contact.create({
-      userId,
-      email,
-      name: name || null,
-      firstName: first_name || null,
-      lastName: last_name || null,
-      company: company || null,
-      jobTitle: job_title || null,
-      phone: phone || null,
-      notes: notes || null
-    });
+    // Check if soft-deleted contact exists and reactivate it
+    const softDeletedContact = await Contact.findOne({ userId, email, isActive: false });
+
+    let contact;
+    if (softDeletedContact) {
+      // Reactivate and update the soft-deleted contact
+      softDeletedContact.isActive = true;
+      softDeletedContact.name = name || softDeletedContact.name;
+      softDeletedContact.firstName = first_name || softDeletedContact.firstName;
+      softDeletedContact.lastName = last_name || softDeletedContact.lastName;
+      softDeletedContact.company = company || softDeletedContact.company;
+      softDeletedContact.jobTitle = job_title || softDeletedContact.jobTitle;
+      softDeletedContact.phone = phone || softDeletedContact.phone;
+      softDeletedContact.notes = notes || softDeletedContact.notes;
+      contact = await softDeletedContact.save();
+    } else {
+      // Create new contact
+      contact = await Contact.create({
+        userId,
+        email,
+        name: name || null,
+        firstName: first_name || null,
+        lastName: last_name || null,
+        company: company || null,
+        jobTitle: job_title || null,
+        phone: phone || null,
+        notes: notes || null
+      });
+    }
 
     res.json({
       success: true,
@@ -172,6 +189,7 @@ export const uploadContactsCSV = async (req, res) => {
     }
     
     let added = 0;
+    let reactivated = 0;
     let skipped = 0;
     let errors = [];
 
@@ -214,27 +232,44 @@ export const uploadContactsCSV = async (req, res) => {
       }
 
       try {
-        const existingContact = await Contact.findOne({ userId, email, isActive: true });
+        // Check if active contact exists
+        const existingActiveContact = await Contact.findOne({ userId, email, isActive: true });
 
-        if (existingContact) {
+        if (existingActiveContact) {
           skipped++;
+          errors.push({ email, reason: 'Already exists' });
           continue;
         }
 
-        await Contact.create({
-          userId,
-          email,
-          name,
-          firstName,
-          lastName,
-          company
-        });
-        added++;
+        // Check if soft-deleted contact exists
+        const softDeletedContact = await Contact.findOne({ userId, email, isActive: false });
+
+        if (softDeletedContact) {
+          // Reactivate and update
+          softDeletedContact.isActive = true;
+          softDeletedContact.name = name || softDeletedContact.name;
+          softDeletedContact.firstName = firstName || softDeletedContact.firstName;
+          softDeletedContact.lastName = lastName || softDeletedContact.lastName;
+          softDeletedContact.company = company || softDeletedContact.company;
+          await softDeletedContact.save();
+          reactivated++;
+        } else {
+          // Create new contact
+          await Contact.create({
+            userId,
+            email,
+            name,
+            firstName,
+            lastName,
+            company
+          });
+          added++;
+        }
       } catch (err) {
         if (err.code === 11000) {
           skipped++;
+          errors.push({ email, reason: 'Duplicate email' });
         } else {
-          console.error('Insert error for', email, ':', err.message);
           skipped++;
           errors.push({ email, reason: err.message });
         }
@@ -245,9 +280,10 @@ export const uploadContactsCSV = async (req, res) => {
       success: true,
       data: {
         added,
+        reactivated,
         skipped,
         total: contacts.length,
-        errors: errors.length > 0 && errors.length <= 10 ? errors : undefined
+        errors: errors.length > 0 && errors.length <= 10 ? errors : (errors.length > 10 ? errors.slice(0, 5) : undefined)
       }
     });
   } catch (error) {

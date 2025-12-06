@@ -357,21 +357,27 @@ const ComposeEnhanced = () => {
     }, [toEmails, subject, body, attachments, clearRecipients, clearAttachments, navigate, refreshHistory]);
 
     // Handle contact selection from sidebar
-    const handleContactSelect = useCallback((contact) => {
+    const handleContactSelect = useCallback((contact, silent = false) => {
         // Add email to the "to" field if not already added
         if (!toEmails.includes(contact.email)) {
             addEmail(contact.email);
-            toast.success(`Added ${contact.name || contact.email} to recipients`);
+            if (!silent) {
+                toast.success(`Added ${contact.name || contact.email} to recipients`);
+            }
         } else {
-            toast.info('Contact already added');
+            if (!silent) {
+                toast.info('Contact already added');
+            }
         }
     }, [toEmails, addEmail]);
 
     // Handle contact removal from sidebar - dynamically remove from recipients
-    const handleContactRemove = useCallback((email) => {
+    const handleContactRemove = useCallback((email, silent = false) => {
         if (toEmails.includes(email)) {
             removeEmail(email);
-            toast.info(`Removed ${email} from recipients`);
+            if (!silent) {
+                toast.info(`Removed ${email} from recipients`);
+            }
         }
     }, [toEmails, removeEmail]);
 
