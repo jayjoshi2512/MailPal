@@ -4,15 +4,14 @@ import axios from 'axios';
  * API Service - Centralized API calls with axios
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Create axios instance with default config
 const apiClient = axios.create({
-    baseURL: API_URL,
+    baseURL: API_BASE_URL,
     headers: {
         'Content-Type': 'application/json',
     },
-    timeout: 30000, // 30 seconds - enough for single operations, bulk runs in background
 });
 
 // Request interceptor to add auth token

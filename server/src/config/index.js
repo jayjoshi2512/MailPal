@@ -6,7 +6,21 @@ export default {
   // Server Configuration
   port: process.env.PORT || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
+  mongoUri: process.env.MONGODB_URI,
+  jwtSecret: process.env.JWT_SECRET,
+  
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    // Update callback URL for production
+    callbackURL: process.env.NODE_ENV === 'production' 
+      ? 'https://cold-mailer-backend.onrender.com/api/auth/google/callback'
+      : 'http://localhost:5000/api/auth/google/callback'
+  },
+  
+  // Update client URL
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
+
 
   // MongoDB Configuration
   mongodb: {
