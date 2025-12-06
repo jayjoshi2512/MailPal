@@ -1,7 +1,7 @@
 import express from 'express';
 import { getDashboardStats, getResponseRate } from '../controllers/dashboardController.js';
 import { authenticate } from '../middleware/auth.js';
-import { query } from '../config/database.js';
+import { Campaign, Contact, SentEmail } from '../models/index.js';
 
 const router = express.Router();
 
@@ -20,31 +20,38 @@ router.get('/debug', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     
-    const [campaigns, contacts, sentEmails] = await Promise.all([
-      query('SELECT COUNT(*) as count FROM campaigns WHERE user_id = $1', [userId]),
-      query('SELECT COUNT(*) as count FROM contacts WHERE user_id = $1', [userId]),
-      query(`SELECT COUNT(*) as count FROM sent_emails se 
-             JOIN campaigns c ON se.campaign_id = c.id 
-             WHERE c.user_id = $1`, [userId])
+    const [campaignsCount, contactsCount] = await Promise.all([
+      Campaign.countDocuments({ userId }),
+      Contact.countDocuments({ userId })
     ]);
 
-    const recentEmails = await query(
-      `SELECT se.id, se.subject, se.sent_at, c.name as campaign 
-       FROM sent_emails se 
-       JOIN campaigns c ON se.campaign_id = c.id 
-       WHERE c.user_id = $1 
-       ORDER BY se.sent_at DESC LIMIT 5`,
-      [userId]
-    );
+    // Get user's campaign IDs for sent emails count
+    const userCampaigns = await Campaign.find({ userId }).select('_id');
+    const campaignIds = userCampaigns.map(c => c._id);
+    
+    const sentEmailsCount = await SentEmail.countDocuments({ 
+      campaignId: { $in: campaignIds } 
+    });
+
+    const recentEmails = await SentEmail.find({ campaignId: { $in: campaignIds } })
+      .populate('campaignId', 'name')
+      .sort({ sentAt: -1 })
+      .limit(5)
+      .lean();
 
     res.json({
       success: true,
       debug: {
         userId,
-        totalCampaigns: parseInt(campaigns.rows[0].count),
-        totalContacts: parseInt(contacts.rows[0].count),
-        totalSentEmails: parseInt(sentEmails.rows[0].count),
-        recentEmails: recentEmails.rows
+        totalCampaigns: campaignsCount,
+        totalContacts: contactsCount,
+        totalSentEmails: sentEmailsCount,
+        recentEmails: recentEmails.map(e => ({
+          id: e._id,
+          subject: e.subject,
+          sent_at: e.sentAt,
+          campaign: e.campaignId?.name
+        }))
       }
     });
   } catch (error) {

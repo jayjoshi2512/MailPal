@@ -1,4 +1,6 @@
-import { query } from '../config/database.js';
+import SentEmail from '../models/SentEmail.js';
+import Campaign from '../models/Campaign.js';
+import Contact from '../models/Contact.js';
 import logger from '../config/logger.js';
 
 /**
@@ -9,331 +11,264 @@ import logger from '../config/logger.js';
  * Get comprehensive dashboard statistics
  */
 export const getDashboardStats = async (req, res) => {
-    try {
-        const userId = req.user.id;
+  try {
+    const userId = req.user._id;
 
-        // Get all stats in parallel for better performance
-        const [
-            emailStats,
-            campaignStats,
-            recentActivity,
-            emailTrends,
-            campaignTrends,
-            campaignPerformance
-        ] = await Promise.all([
-            getEmailStatistics(userId),
-            getCampaignStatistics(userId),
-            getRecentActivity(userId),
-            getEmailTrends(userId),
-            getCampaignTrends(userId),
-            getCampaignPerformance(userId)
-        ]);
+    const [
+      emailStats,
+      campaignStats,
+      recentActivity,
+      emailTrends,
+      campaignTrends,
+      campaignPerformance
+    ] = await Promise.all([
+      getEmailStatistics(userId),
+      getCampaignStatistics(userId),
+      getRecentActivity(userId),
+      getEmailTrends(userId),
+      getCampaignTrends(userId),
+      getCampaignPerformance(userId)
+    ]);
 
-        res.json({
-            success: true,
-            data: {
-                emailStats,
-                campaignStats,
-                recentActivity,
-                emailTrends,
-                campaignTrends,
-                campaignPerformance
-            }
-        });
-    } catch (error) {
-        logger.error('Dashboard stats error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch dashboard statistics',
-            message: error.message
-        });
-    }
+    res.json({
+      success: true,
+      data: {
+        emailStats,
+        campaignStats,
+        recentActivity,
+        emailTrends,
+        campaignTrends,
+        campaignPerformance
+      }
+    });
+  } catch (error) {
+    logger.error('Dashboard stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch dashboard statistics',
+      message: error.message
+    });
+  }
 };
 
 /**
  * Get email statistics
  */
 async function getEmailStatistics(userId) {
-    try {
-        const result = await query(
-            `SELECT 
-                COUNT(*) as total_sent,
-                COUNT(CASE WHEN sent_at >= CURRENT_TIMESTAMP - INTERVAL '7 days' THEN 1 END) as sent_this_week,
-                COUNT(CASE WHEN sent_at >= CURRENT_DATE THEN 1 END) as sent_today
-             FROM sent_emails
-             WHERE user_id = $1 AND sent_at IS NOT NULL`,
-            [userId]
-        );
+  try {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-        if (!result.rows || result.rows.length === 0) {
-            return {
-                totalSent: 0,
-                sentThisWeek: 0,
-                sentToday: 0
-            };
-        }
+    const [totalSent, sentThisWeek, sentToday] = await Promise.all([
+      SentEmail.countDocuments({ userId, sentAt: { $ne: null } }),
+      SentEmail.countDocuments({ userId, sentAt: { $gte: sevenDaysAgo } }),
+      SentEmail.countDocuments({ userId, sentAt: { $gte: startOfToday } })
+    ]);
 
-        return {
-            totalSent: parseInt(result.rows[0].total_sent) || 0,
-            sentThisWeek: parseInt(result.rows[0].sent_this_week) || 0,
-            sentToday: parseInt(result.rows[0].sent_today) || 0
-        };
-    } catch (error) {
-        logger.error('Error fetching email statistics:', error);
-        return {
-            totalSent: 0,
-            sentThisWeek: 0,
-            sentToday: 0
-        };
-    }
+    return {
+      totalSent: totalSent || 0,
+      sentThisWeek: sentThisWeek || 0,
+      sentToday: sentToday || 0
+    };
+  } catch (error) {
+    logger.error('Error fetching email statistics:', error);
+    return { totalSent: 0, sentThisWeek: 0, sentToday: 0 };
+  }
 }
 
 /**
  * Get campaign statistics
- * Excludes "Manual Emails" system campaign
  */
 async function getCampaignStatistics(userId) {
-    try {
-        const result = await query(
-            `SELECT 
-                COUNT(*) as total_campaigns,
-                COUNT(CASE WHEN status = 'active' THEN 1 END) as active_campaigns,
-                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_campaigns,
-                COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_campaigns
-             FROM campaigns
-             WHERE user_id = $1 
-             AND (is_active = true OR is_active IS NULL)
-             AND name != 'Manual Emails'`,
-            [userId]
-        );
+  try {
+    const query = {
+      userId,
+      $or: [{ isActive: true }, { isActive: { $exists: false } }],
+      name: { $ne: 'Manual Emails' }
+    };
 
-        if (!result.rows || result.rows.length === 0) {
-            return {
-                totalCampaigns: 0,
-                activeCampaigns: 0,
-                completedCampaigns: 0,
-                draftCampaigns: 0
-            };
-        }
+    const [totalCampaigns, activeCampaigns, completedCampaigns, draftCampaigns] = await Promise.all([
+      Campaign.countDocuments(query),
+      Campaign.countDocuments({ ...query, status: 'active' }),
+      Campaign.countDocuments({ ...query, status: 'completed' }),
+      Campaign.countDocuments({ ...query, status: 'draft' })
+    ]);
 
-        return {
-            totalCampaigns: parseInt(result.rows[0].total_campaigns) || 0,
-            activeCampaigns: parseInt(result.rows[0].active_campaigns) || 0,
-            completedCampaigns: parseInt(result.rows[0].completed_campaigns) || 0,
-            draftCampaigns: parseInt(result.rows[0].draft_campaigns) || 0
-        };
-    } catch (error) {
-        logger.error('Error fetching campaign statistics:', error);
-        return {
-            totalCampaigns: 0,
-            activeCampaigns: 0,
-            completedCampaigns: 0,
-            draftCampaigns: 0
-        };
-    }
+    return {
+      totalCampaigns: totalCampaigns || 0,
+      activeCampaigns: activeCampaigns || 0,
+      completedCampaigns: completedCampaigns || 0,
+      draftCampaigns: draftCampaigns || 0
+    };
+  } catch (error) {
+    logger.error('Error fetching campaign statistics:', error);
+    return { totalCampaigns: 0, activeCampaigns: 0, completedCampaigns: 0, draftCampaigns: 0 };
+  }
 }
 
 /**
  * Get recent email activity (last 10 emails)
- * Shows ALL sent emails - both compose and campaign emails
  */
 async function getRecentActivity(userId) {
-    try {
-        const result = await query(
-            `SELECT 
-                se.id,
-                se.subject,
-                se.recipient_email as email_to,
-                se.recipient_name,
-                se.sent_at,
-                COALESCE(c.name, 'Compose') as campaign_name,
-                CASE WHEN c.name = 'Manual Emails' OR c.id IS NULL THEN 'compose' ELSE 'campaign' END as email_type
-             FROM sent_emails se
-             LEFT JOIN campaigns c ON se.campaign_id = c.id
-             WHERE se.user_id = $1 
-             AND se.sent_at IS NOT NULL
-             ORDER BY se.sent_at DESC
-             LIMIT 10`,
-            [userId]
-        );
+  try {
+    const sentEmails = await SentEmail.find({ userId, sentAt: { $ne: null } })
+      .populate('campaignId', 'name')
+      .sort({ sentAt: -1 })
+      .limit(10)
+      .lean();
 
-        if (!result.rows || result.rows.length === 0) {
-            return [];
-        }
-
-        return result.rows.map(row => ({
-            id: row.id,
-            subject: row.subject || 'No Subject',
-            emailTo: row.email_to,
-            recipient: row.email_to,
-            recipientName: row.recipient_name,
-            sentAt: row.sent_at,
-            status: 'sent',
-            campaignName: row.campaign_name === 'Manual Emails' ? 'Compose' : row.campaign_name,
-            emailType: row.email_type
-        }));
-    } catch (error) {
-        logger.error('Error fetching recent activity:', error);
-        return [];
-    }
+    return sentEmails.map(row => ({
+      id: row._id,
+      subject: row.subject || 'No Subject',
+      emailTo: row.recipientEmail,
+      recipient: row.recipientEmail,
+      recipientName: row.recipientName,
+      sentAt: row.sentAt,
+      status: 'sent',
+      campaignName: row.campaignId?.name === 'Manual Emails' || !row.campaignId ? 'Compose' : row.campaignId.name,
+      emailType: row.campaignId?.name === 'Manual Emails' || !row.campaignId ? 'compose' : 'campaign'
+    }));
+  } catch (error) {
+    logger.error('Error fetching recent activity:', error);
+    return [];
+  }
 }
 
 /**
  * Get email trends over time (last 30 days)
  */
 async function getEmailTrends(userId) {
-    try {
-        const result = await query(
-            `SELECT 
-                DATE(sent_at) as date,
-                COUNT(*) as count
-             FROM sent_emails
-             WHERE user_id = $1
-             AND sent_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
-             AND sent_at IS NOT NULL
-             GROUP BY DATE(sent_at)
-             ORDER BY DATE(sent_at) ASC`,
-            [userId]
-        );
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-        if (!result.rows || result.rows.length === 0) {
-            return [];
+    const trends = await SentEmail.aggregate([
+      {
+        $match: {
+          userId,
+          sentAt: { $gte: thirtyDaysAgo, $ne: null }
         }
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$sentAt' } },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
 
-        return result.rows.map(row => ({
-            date: row.date,
-            count: parseInt(row.count) || 0
-        }));
-    } catch (error) {
-        logger.error('Error fetching email trends:', error);
-        return [];
-    }
+    return trends.map(t => ({
+      date: t._id,
+      count: t.count
+    }));
+  } catch (error) {
+    logger.error('Error fetching email trends:', error);
+    return [];
+  }
 }
 
 /**
  * Get campaign activity trends over time (last 30 days)
- * Excludes "Manual Emails" system campaign
  */
 async function getCampaignTrends(userId) {
-    try {
-        const result = await query(
-            `SELECT 
-                DATE(created_at) as date,
-                COUNT(*) as count,
-                COUNT(CASE WHEN status = 'active' THEN 1 END) as active,
-                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed
-             FROM campaigns
-             WHERE user_id = $1
-             AND created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
-             AND (is_active = true OR is_active IS NULL)
-             AND name != 'Manual Emails'
-             GROUP BY DATE(created_at)
-             ORDER BY DATE(created_at) ASC`,
-            [userId]
-        );
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-        if (!result.rows || result.rows.length === 0) {
-            return [];
+    const trends = await Campaign.aggregate([
+      {
+        $match: {
+          userId,
+          createdAt: { $gte: thirtyDaysAgo },
+          $or: [{ isActive: true }, { isActive: { $exists: false } }],
+          name: { $ne: 'Manual Emails' }
         }
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          count: { $sum: 1 },
+          active: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+          completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
 
-        return result.rows.map(row => ({
-            date: row.date,
-            count: parseInt(row.count) || 0,
-            active: parseInt(row.active) || 0,
-            completed: parseInt(row.completed) || 0
-        }));
-    } catch (error) {
-        logger.error('Error fetching campaign trends:', error);
-        return [];
-    }
+    return trends.map(t => ({
+      date: t._id,
+      count: t.count,
+      active: t.active,
+      completed: t.completed
+    }));
+  } catch (error) {
+    logger.error('Error fetching campaign trends:', error);
+    return [];
+  }
 }
 
 /**
  * Get top performing campaigns
- * Excludes "Manual Emails" system campaign
  */
 async function getCampaignPerformance(userId) {
-    try {
-        const result = await query(
-            `SELECT 
-                c.id,
-                c.name,
-                c.status,
-                COUNT(DISTINCT se.id) as emails_sent
-             FROM campaigns c
-             LEFT JOIN sent_emails se ON c.id = se.campaign_id
-             WHERE c.user_id = $1 
-             AND (c.is_active = true OR c.is_active IS NULL)
-             AND c.name != 'Manual Emails'
-             GROUP BY c.id, c.name, c.status
-             ORDER BY emails_sent DESC
-             LIMIT 5`,
-            [userId]
-        );
+  try {
+    const campaigns = await Campaign.find({
+      userId,
+      $or: [{ isActive: true }, { isActive: { $exists: false } }],
+      name: { $ne: 'Manual Emails' }
+    }).lean();
 
-        if (!result.rows || result.rows.length === 0) {
-            return [];
-        }
+    const performance = await Promise.all(
+      campaigns.map(async (campaign) => {
+        const emailsSent = await SentEmail.countDocuments({ campaignId: campaign._id });
+        return {
+          id: campaign._id,
+          name: campaign.name || 'Unnamed Campaign',
+          status: campaign.status || 'unknown',
+          emails_sent: emailsSent
+        };
+      })
+    );
 
-        return result.rows.map(row => ({
-            id: row.id,
-            name: row.name || 'Unnamed Campaign',
-            status: row.status || 'unknown',
-            emails_sent: parseInt(row.emails_sent) || 0
-        }));
-    } catch (error) {
-        logger.error('Error fetching campaign performance:', error);
-        return [];
-    }
+    return performance
+      .sort((a, b) => b.emails_sent - a.emails_sent)
+      .slice(0, 5);
+  } catch (error) {
+    logger.error('Error fetching campaign performance:', error);
+    return [];
+  }
 }
 
 /**
  * Get overall response rate
- * Note: Since click_tracking is removed, this just returns email stats
  */
 export const getResponseRate = async (req, res) => {
-    try {
-        const userId = req.user.id;
+  try {
+    const userId = req.user._id;
 
-        const result = await query(
-            `SELECT 
-                COUNT(DISTINCT se.id) as total_sent
-             FROM campaigns c
-             LEFT JOIN sent_emails se ON c.id = se.campaign_id
-             WHERE c.user_id = $1 AND (c.is_active = true OR c.is_active IS NULL)`,
-            [userId]
-        );
+    const totalSent = await SentEmail.countDocuments({
+      userId,
+      campaignId: { $ne: null }
+    });
 
-        if (!result.rows || result.rows.length === 0) {
-            return res.json({
-                success: true,
-                data: {
-                    totalSent: 0,
-                    responseRate: 0
-                }
-            });
-        }
-
-        const totalSent = parseInt(result.rows[0].total_sent) || 0;
-
-        res.json({
-            success: true,
-            data: {
-                totalSent,
-                responseRate: 0 // Click tracking removed
-            }
-        });
-    } catch (error) {
-        logger.error('Response rate error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch response rate',
-            message: error.message
-        });
-    }
+    res.json({
+      success: true,
+      data: {
+        totalSent: totalSent || 0,
+        responseRate: 0 // Click tracking removed
+      }
+    });
+  } catch (error) {
+    logger.error('Response rate error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch response rate',
+      message: error.message
+    });
+  }
 };
 
 export default {
-    getDashboardStats,
-    getResponseRate
+  getDashboardStats,
+  getResponseRate
 };

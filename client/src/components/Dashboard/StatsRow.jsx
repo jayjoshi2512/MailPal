@@ -64,7 +64,15 @@ const StatsRow = ({ emailStats, campaignStats }) => {
             <StatCard
                 label="Remaining"
                 value={DAILY_LIMIT - emailsSentToday}
-                subLabel="emails left today"
+                subLabel={
+                    <span className="flex flex-col gap-0.5">
+                        <span>via MailPal only</span>
+                        <span className="text-[10px] text-amber-500 font-medium flex items-center gap-1">
+                            <i className="ri-error-warning-line"></i>
+                            Gmail's 500/day limit (all sources)
+                        </span>
+                    </span>
+                }
                 icon="ri-inbox-unarchive-line"
                 iconBgColor="bg-green-500/10"
                 iconColor="text-green-500"

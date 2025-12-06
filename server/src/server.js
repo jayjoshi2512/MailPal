@@ -8,7 +8,7 @@ import 'express-async-errors';
 
 import config from './config/index.js';
 import logger from './config/logger.js';
-import { testConnection } from './config/database.js';
+import { connectDB, testConnection } from './config/database.js';
 import routes from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
@@ -84,6 +84,9 @@ const PORT = config.port;
 
 const startServer = async () => {
     try {
+        // Connect to MongoDB
+        await connectDB();
+        
         // Test database connection
         const dbConnected = await testConnection();
         if (!dbConnected) {
@@ -95,7 +98,7 @@ const startServer = async () => {
             logger.info(`🚀 Server running on port ${PORT}`);
             logger.info(`📝 Environment: ${config.nodeEnv}`);
             logger.info(`🌐 Client URL: ${config.clientUrl}`);
-            logger.info(`💾 Database: ${config.database.name}`);
+            logger.info(`💾 Database: MongoDB`);
         });
     } catch (error) {
         logger.error('Failed to start server:', error);

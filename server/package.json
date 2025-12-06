@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon --ignore uploads/ --ignore logs/ --ignore data/ src/server.js",
+    "seed": "node seed.js"
   },
   "keywords": [
     "email",
@@ -28,10 +29,10 @@
     "googleapis": "^144.0.0",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.8.0",
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
     "papaparse": "^5.5.3",
-    "pg": "^8.12.0",
     "winston": "^3.14.2"
   },
   "devDependencies": {

@@ -43,12 +43,17 @@ const RichTextEditor = ({ value, onChange, placeholder, className }) => {
     const [linkUrl, setLinkUrl] = useState('');
     const [linkText, setLinkText] = useState('');
 
-    // Initialize editor content only once
+    // Initialize editor content and update when value changes externally
     useEffect(() => {
-        if (editorRef.current && !editorRef.current.innerHTML) {
-            editorRef.current.innerHTML = value || '';
+        if (editorRef.current && value !== editorRef.current.innerHTML) {
+            // Only update if the content is actually different to avoid cursor jumps
+            // This is crucial for AI-generated content to appear
+            const currentContent = editorRef.current.innerHTML;
+            if (value !== currentContent) {
+                editorRef.current.innerHTML = value || '';
+            }
         }
-    }, []);
+    }, [value]);
 
     // Update active formats on selection change
     const updateActiveFormats = useCallback(() => {

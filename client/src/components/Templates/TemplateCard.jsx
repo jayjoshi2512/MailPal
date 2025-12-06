@@ -17,7 +17,11 @@ const TemplateCard = ({
     onToggleFavorite 
 }) => {
     const variables = extractVariables(template.subject + ' ' + template.body);
-    const isOwned = template.user_id !== null;
+    // Handle both snake_case (PostgreSQL) and camelCase (MongoDB) field names
+    const userId = template.user_id ?? template.userId;
+    const isFavorite = template.is_favorite ?? template.isFavorite;
+    const isPublic = template.is_public ?? template.isPublic;
+    const isOwned = userId !== null && userId !== undefined;
 
     return (
         <Card className="group hover:shadow-md flex flex-col h-full">
@@ -25,7 +29,7 @@ const TemplateCard = ({
                 <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                         <CardTitle className="text-sm font-medium truncate flex items-center gap-2">
-                            {(template.is_favorite || isFeatured) && (
+                            {(isFavorite || isFeatured) && (
                                 <i className="ri-star-fill text-yellow-500 text-xs"></i>
                             )}
                             {template.name}
@@ -42,7 +46,7 @@ const TemplateCard = ({
                                     {template.featured_category}
                                 </Badge>
                             )}
-                            {template.is_public && !isOwned && (
+                            {isPublic && !isOwned && (
                                 <Badge variant="outline" className="text-[10px]">
                                     <i className="ri-global-line mr-1"></i>Public
                                 </Badge>
@@ -57,9 +61,9 @@ const TemplateCard = ({
                                     variant="ghost"
                                     className="h-7 w-7 p-0"
                                     onClick={() => onToggleFavorite(template)}
-                                    title={template.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+                                    title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                                 >
-                                    <i className={`ri-star-${template.is_favorite ? 'fill text-yellow-500' : 'line'} text-sm`}></i>
+                                    <i className={`ri-star-${isFavorite ? 'fill text-yellow-500' : 'line'} text-sm`}></i>
                                 </Button>
                             )}
                             {isOwned && onEdit && (
@@ -95,28 +99,25 @@ const TemplateCard = ({
                     {template.body}
                 </p>
                 {template.category === 'campaign' && variables.length > 0 && (
-                    <div className="mb-3">
-                        <p className="text-[10px] font-medium text-muted-foreground mb-1 flex items-center gap-1">
-                            <i className="ri-braces-line"></i>
-                            {isFeatured ? 'Variables' : 'Required CSV Columns'} ({variables.length})
+                    <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <p className="text-[10px] font-semibold text-blue-700 dark:text-blue-400 mb-1.5 flex items-center gap-1">
+                            <i className="ri-file-list-3-line"></i>
+                            {isFeatured ? 'Template Variables' : 'Required CSV Columns'}
                         </p>
-                        <div className="flex flex-wrap gap-1">
-                            {variables.slice(0, 4).map(v => (
-                                <Badge key={v} variant="outline" className="text-[9px] font-mono">
-                                    {`{{${v}}}`}
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                            {variables.map(v => (
+                                <Badge key={v} variant="outline" className="text-[9px] font-mono bg-white dark:bg-gray-800">
+                                    {v}
                                 </Badge>
                             ))}
-                            {variables.length > 4 && (
-                                <Badge variant="secondary" className="text-[9px]">
-                                    +{variables.length - 4} more
-                                </Badge>
-                            )}
                         </div>
-                        {!isFeatured && (
-                            <p className="text-[9px] text-muted-foreground mt-1">
-                                These variables will be replaced with values from your CSV
-                            </p>
-                        )}
+                        <p className="text-[8px] text-blue-600 dark:text-blue-300 flex items-center gap-1">
+                            <i className="ri-information-line"></i>
+                            {isFeatured 
+                                ? 'Use these column names in your CSV file'
+                                : 'Your CSV must have these columns for personalization'
+                            }
+                        </p>
                     </div>
                 )}
                 <div className="mt-auto pt-2">

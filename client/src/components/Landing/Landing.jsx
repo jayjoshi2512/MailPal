@@ -13,7 +13,7 @@ const Landing = () => {
     const ANIMATION_INTERVAL = 4000;
 
     const stats = [
-        { value: '500+', label: 'Emails/Day', icon: 'ri-mail-send-line' },
+        { value: '500', label: 'Emails/Day', icon: 'ri-mail-send-line' },
         { value: '25MB', label: 'Attachment Limit', icon: 'ri-attachment-2' },
         { value: '100%', label: 'Free to Use', icon: 'ri-gift-line' },
     ];

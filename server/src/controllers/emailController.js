@@ -1,31 +1,31 @@
 import emailService from '../services/emailService.js';
 import logger from '../config/logger.js';
-import { query } from '../config/database.js';
+import Campaign from '../models/Campaign.js';
+import Contact from '../models/Contact.js';
+import SentEmail from '../models/SentEmail.js';
+import EmailQueue from '../models/EmailQueue.js';
+
+// In-memory tracking for active email jobs (for real-time status)
+const activeJobs = new Map();
 
 /**
  * Get or create default "Manual Emails" campaign for compose page emails
  */
 const getOrCreateManualCampaign = async (userId) => {
   try {
-    // Check if manual campaign exists
-    let result = await query(
-      `SELECT id FROM campaigns WHERE user_id = $1 AND name = 'Manual Emails' LIMIT 1`,
-      [userId]
-    );
+    let campaign = await Campaign.findOne({ userId, name: 'Manual Emails' });
 
-    if (result.rows.length > 0) {
-      return result.rows[0].id;
+    if (campaign) {
+      return campaign._id;
     }
 
-    // Create manual campaign
-    result = await query(
-      `INSERT INTO campaigns (user_id, name, status, created_at, updated_at) 
-       VALUES ($1, 'Manual Emails', 'active', NOW(), NOW()) 
-       RETURNING id`,
-      [userId]
-    );
+    campaign = await Campaign.create({
+      userId,
+      name: 'Manual Emails',
+      status: 'active'
+    });
 
-    return result.rows[0].id;
+    return campaign._id;
   } catch (error) {
     logger.error('Error getting/creating manual campaign:', error);
     return null;
@@ -33,33 +33,38 @@ const getOrCreateManualCampaign = async (userId) => {
 };
 
 /**
- * Get or create contact for email recipient (compose contacts)
+ * Get or create contact for email recipient (compose contacts ONLY)
+ * This should ONLY be used for manual emails from compose page
+ * Campaign recipients should NOT be added to personal contacts
  */
-const getOrCreateContact = async (userId, email, name = null) => {
+const getOrCreateContact = async (userId, email, name = null, campaignId = null) => {
   try {
-    // Check if contact exists (only compose contacts, not campaign contacts)
-    let result = await query(
-      `SELECT id FROM contacts 
-       WHERE user_id = $1 AND email = $2 
-       AND (source = 'compose' OR source IS NULL)
-       AND (is_active = true OR is_active IS NULL)
-       LIMIT 1`,
-      [userId, email]
-    );
+    // If this is a campaign email, DON'T create a personal contact
+    // Campaign recipients are tracked separately via SentEmail model
+    if (campaignId) {
+      // Check if this is the "Manual Emails" campaign (compose page)
+      const campaign = await Campaign.findById(campaignId);
+      if (campaign && campaign.name !== 'Manual Emails') {
+        // This is a real campaign, not manual compose - don't create contact
+        return null;
+      }
+    }
+    
+    // Only create contact for manual/compose emails
+    let contact = await Contact.findOne({ userId, email, isActive: true });
 
-    if (result.rows.length > 0) {
-      return result.rows[0].id;
+    if (contact) {
+      return contact._id;
     }
 
-    // Create contact with source='compose'
-    result = await query(
-      `INSERT INTO contacts (user_id, email, name, status, source, is_active, created_at, updated_at) 
-       VALUES ($1, $2, $3, 'active', 'compose', true, NOW(), NOW()) 
-       RETURNING id`,
-      [userId, email, name || email.split('@')[0]]
-    );
+    contact = await Contact.create({
+      userId,
+      email,
+      name: name || email.split('@')[0],
+      isActive: true
+    });
 
-    return result.rows[0].id;
+    return contact._id;
   } catch (error) {
     logger.error('Error getting/creating contact:', error);
     return null;
@@ -67,69 +72,126 @@ const getOrCreateContact = async (userId, email, name = null) => {
 };
 
 /**
+ * Process emails sequentially with delay to avoid rate limits
+ * This runs in the background after response is sent
+ */
+const processEmailQueue = async (jobId, userId, recipients, subject, body, attachments, campaignId) => {
+  const job = activeJobs.get(jobId);
+  if (!job) return;
+
+  const DELAY_BETWEEN_EMAILS = 1000; // 1 second delay between emails to avoid rate limits
+  const BATCH_SIZE = 10; // Process in batches
+  const BATCH_DELAY = 5000; // 5 second delay between batches
+
+  logger.info(`📧 Starting email job ${jobId}: ${recipients.length} recipients`);
+
+  for (let i = 0; i < recipients.length; i++) {
+    const recipient = recipients[i];
+    
+    try {
+      // Get or create contact (only for manual emails, not campaigns)
+      const contactId = await getOrCreateContact(userId, recipient, null, campaignId);
+      
+      // Send the email
+      await emailService.sendEmail(
+        userId,
+        recipient,
+        subject,
+        body,
+        campaignId,
+        contactId,
+        attachments,
+        null
+      );
+
+      job.sent++;
+      job.processed++;
+      logger.info(`[${job.processed}/${job.total}] Email sent to ${recipient}`);
+
+    } catch (error) {
+      job.failed++;
+      job.processed++;
+      job.errors.push({ email: recipient, error: error.message });
+      logger.error(`❌ [${job.processed}/${job.total}] Failed to send to ${recipient}: ${error.message}`);
+    }
+
+    // Update job status
+    job.status = job.processed === job.total ? 'completed' : 'processing';
+
+    // Add delay between emails
+    if (i < recipients.length - 1) {
+      // Longer delay after each batch
+      if ((i + 1) % BATCH_SIZE === 0) {
+        logger.info(`⏳ Batch completed, waiting ${BATCH_DELAY/1000}s before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+      } else {
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_EMAILS));
+      }
+    }
+  }
+
+  job.completedAt = new Date();
+  logger.info(`📧 Email job ${jobId} completed: ${job.sent} sent, ${job.failed} failed`);
+
+  // No file cleanup needed - attachments sent as base64 from browser memory
+
+  // Keep job in memory for 5 minutes for status checking, then remove
+  setTimeout(() => {
+    activeJobs.delete(jobId);
+  }, 5 * 60 * 1000);
+};
+
+/**
  * Get compose email history
- * Returns all emails sent via compose (Manual Emails campaign)
  */
 export const getComposeHistory = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
     const search = req.query.search || '';
 
-    // Build search condition
-    let searchCondition = '';
-    const params = [userId];
-    
+    // Get Manual Emails campaign
+    const manualCampaign = await Campaign.findOne({ userId, name: 'Manual Emails' });
+
+    const query = {
+      userId,
+      $or: [
+        { campaignId: manualCampaign?._id },
+        { campaignId: null }
+      ]
+    };
+
     if (search) {
-      params.push(`%${search}%`);
-      searchCondition = `AND (se.subject ILIKE $2 OR se.recipient_email ILIKE $2 OR se.recipient_name ILIKE $2)`;
+      query.$and = [{
+        $or: [
+          { subject: { $regex: search, $options: 'i' } },
+          { recipientEmail: { $regex: search, $options: 'i' } },
+          { recipientName: { $regex: search, $options: 'i' } }
+        ]
+      }];
     }
 
-    // Get total count
-    const countResult = await query(
-      `SELECT COUNT(*) as total
-       FROM sent_emails se
-       LEFT JOIN campaigns c ON se.campaign_id = c.id
-       WHERE se.user_id = $1 
-       AND (c.name = 'Manual Emails' OR c.id IS NULL)
-       ${searchCondition}`,
-      params
-    );
-
-    // Get compose emails
-    const result = await query(
-      `SELECT 
-          se.id,
-          se.subject,
-          se.body,
-          se.recipient_email,
-          se.recipient_name,
-          se.sent_at,
-          se.status
-       FROM sent_emails se
-       LEFT JOIN campaigns c ON se.campaign_id = c.id
-       WHERE se.user_id = $1 
-       AND (c.name = 'Manual Emails' OR c.id IS NULL)
-       ${searchCondition}
-       ORDER BY se.sent_at DESC
-       LIMIT ${limit} OFFSET ${offset}`,
-      params
-    );
-
-    const total = parseInt(countResult.rows[0]?.total) || 0;
+    const [emails, total] = await Promise.all([
+      SentEmail.find(query)
+        .sort({ sentAt: -1 })
+        .skip(offset)
+        .limit(limit)
+        .lean(),
+      SentEmail.countDocuments(query)
+    ]);
 
     res.json({
       success: true,
       data: {
-        emails: result.rows.map(row => ({
-          id: row.id,
+        emails: emails.map(row => ({
+          id: row._id,
           subject: row.subject || 'No Subject',
           body: row.body,
-          recipientEmail: row.recipient_email,
-          recipientName: row.recipient_name,
-          sentAt: row.sent_at,
+          recipientEmail: row.recipientEmail,
+          recipientName: row.recipientName,
+          sentAt: row.sentAt,
           status: row.status || 'sent'
         })),
         pagination: {
@@ -151,57 +213,155 @@ export const getComposeHistory = async (req, res) => {
 };
 
 /**
- * Send a test email
+ * Send a test email - NOW WITH BACKGROUND PROCESSING
+ * For bulk emails (>1 recipient), returns immediately and processes in background
  */
 export const sendTestEmail = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { to, subject, body, attachments = [], campaignId = null, recipientName = null } = req.body;
 
-    // If campaignId is provided, use it; otherwise get or create manual campaign
     const effectiveCampaignId = campaignId || await getOrCreateManualCampaign(userId);
-
-    // Support multiple recipients
     const recipients = Array.isArray(to) ? to : [to];
-    
-    // Send to all recipients with attachments and tracking
-    const results = await Promise.allSettled(
-      recipients.map(async (recipient) => {
-        // Get or create contact for this recipient
-        const contactId = await getOrCreateContact(userId, recipient);
-        
-        // Send email with campaign and contact tracking
-        return emailService.sendEmail(
-          userId, 
-          recipient, 
-          subject, 
-          body, 
-          effectiveCampaignId, 
-          contactId, 
+
+    // For single email, send synchronously (fast)
+    if (recipients.length === 1) {
+      const contactId = await getOrCreateContact(userId, recipients[0], recipientName, effectiveCampaignId);
+      
+      try {
+        const result = await emailService.sendEmail(
+          userId,
+          recipients[0],
+          subject,
+          body,
+          effectiveCampaignId,
+          contactId,
           attachments,
           recipientName
         );
-      })
-    );
 
-    const successful = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.filter(r => r.status === 'rejected').length;
+        // No file cleanup needed - attachments sent as base64 from browser memory
 
+        return res.json({
+          success: true,
+          data: {
+            sent: 1,
+            failed: 0,
+            total: 1,
+            immediate: true
+          },
+          message: `Email sent to ${recipients[0]}`,
+        });
+      } catch (error) {
+        logger.error('Single email send error:', error);
+        
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to send email',
+          message: error.message,
+        });
+      }
+    }
+
+    // For bulk emails (>1 recipient), process in background
+    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Initialize job tracking
+    const job = {
+      id: jobId,
+      userId: userId.toString(),
+      status: 'queued',
+      total: recipients.length,
+      sent: 0,
+      failed: 0,
+      processed: 0,
+      errors: [],
+      startedAt: new Date(),
+      completedAt: null
+    };
+    activeJobs.set(jobId, job);
+
+    // Start processing in background (don't await!)
+    processEmailQueue(jobId, userId, recipients, subject, body, attachments, effectiveCampaignId)
+      .catch(err => {
+        logger.error(`Background email job ${jobId} failed:`, err);
+        const job = activeJobs.get(jobId);
+        if (job) {
+          job.status = 'failed';
+          job.error = err.message;
+        }
+      });
+
+    // Return immediately with job ID
+    logger.info(`📧 Bulk email job ${jobId} queued: ${recipients.length} recipients`);
+    
     res.json({
       success: true,
       data: {
-        sent: successful,
-        failed: failed,
-        total: recipients.length
+        jobId,
+        total: recipients.length,
+        status: 'queued',
+        immediate: false
       },
-      message: `Email sent to ${successful} of ${recipients.length} recipients`,
+      message: `Sending ${recipients.length} emails in background. Check status with job ID.`,
     });
+
   } catch (error) {
     logger.error('Send test email error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to send test email',
+      error: 'Failed to queue emails',
       message: error.message,
+    });
+  }
+};
+
+/**
+ * Get email job status
+ */
+export const getEmailJobStatus = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const userId = req.user._id.toString();
+
+    const job = activeJobs.get(jobId);
+
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: 'Job not found or expired',
+        message: 'Job status is only available for 5 minutes after completion'
+      });
+    }
+
+    // Security: Only allow user to see their own jobs
+    if (job.userId !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        jobId: job.id,
+        status: job.status,
+        total: job.total,
+        sent: job.sent,
+        failed: job.failed,
+        processed: job.processed,
+        progress: Math.round((job.processed / job.total) * 100),
+        errors: job.errors.slice(-10), // Last 10 errors
+        startedAt: job.startedAt,
+        completedAt: job.completedAt
+      }
+    });
+  } catch (error) {
+    logger.error('Get job status error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get job status'
     });
   }
 };
@@ -211,7 +371,7 @@ export const sendTestEmail = async (req, res) => {
  */
 export const sendCampaignEmails = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { campaignId } = req.params;
 
     const results = await emailService.sendCampaignEmails(campaignId, userId);
@@ -236,7 +396,7 @@ export const sendCampaignEmails = async (req, res) => {
  */
 export const testConnection = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     const result = await emailService.testEmailConnection(userId);
 
@@ -260,4 +420,5 @@ export default {
   sendCampaignEmails,
   testConnection,
   getComposeHistory,
+  getEmailJobStatus,
 };

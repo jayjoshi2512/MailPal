@@ -1,9 +1,9 @@
 import express from 'express';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { query } from '../config/database.js';
 import config from '../config/index.js';
 import { sendAdminCode } from '../services/emailService.js';
+import { User, Campaign, SentEmail, Template, Contact } from '../models/index.js';
 
 const router = express.Router();
 
@@ -242,95 +242,154 @@ const verifyAdminToken = (req, res, next) => {
  */
 router.get('/dashboard', verifyAdminToken, async (req, res) => {
     try {
-        // Get all users (using only columns that exist in the schema)
-        const usersResult = await query(`
-            SELECT 
-                id, email, name, profile_picture as picture, created_at, updated_at
-            FROM users 
-            ORDER BY created_at DESC
-        `);
+        // Get all users
+        const users = await User.find()
+            .select('email name profilePicture createdAt updatedAt')
+            .sort({ createdAt: -1 });
 
         // Get total counts
-        const statsResult = await query(`
-            SELECT
-                (SELECT COUNT(*) FROM users) as total_users,
-                (SELECT COUNT(*) FROM campaigns) as total_campaigns,
-                (SELECT COUNT(*) FROM sent_emails) as total_emails_sent,
-                (SELECT COUNT(*) FROM templates) as total_templates,
-                (SELECT COUNT(*) FROM contacts) as total_contacts
-        `);
+        const [totalUsers, totalCampaigns, totalEmailsSent, totalTemplates, totalContacts] = await Promise.all([
+            User.countDocuments(),
+            Campaign.countDocuments(),
+            SentEmail.countDocuments(),
+            Template.countDocuments(),
+            Contact.countDocuments()
+        ]);
+
+        const stats = {
+            total_users: totalUsers,
+            total_campaigns: totalCampaigns,
+            total_emails_sent: totalEmailsSent,
+            total_templates: totalTemplates,
+            total_contacts: totalContacts
+        };
 
         // Get campaigns with details
-        const campaignsResult = await query(`
-            SELECT 
-                c.id, c.name, c.subject, c.status, c.created_at,
-                u.email as user_email, u.name as user_name,
-                (SELECT COUNT(*) FROM sent_emails se WHERE se.campaign_id = c.id) as emails_sent
-            FROM campaigns c
-            LEFT JOIN users u ON c.user_id = u.id
-            ORDER BY c.created_at DESC
-            LIMIT 50
-        `);
+        const campaigns = await Campaign.find()
+            .populate('userId', 'email name')
+            .sort({ createdAt: -1 })
+            .limit(50)
+            .lean();
+
+        // Add email count to each campaign
+        const campaignsWithCounts = await Promise.all(
+            campaigns.map(async (campaign) => {
+                const emailsSent = await SentEmail.countDocuments({ campaignId: campaign._id });
+                return {
+                    id: campaign._id,
+                    name: campaign.name,
+                    subject: campaign.subject,
+                    status: campaign.status,
+                    created_at: campaign.createdAt,
+                    user_email: campaign.userId?.email,
+                    user_name: campaign.userId?.name,
+                    emails_sent: emailsSent
+                };
+            })
+        );
 
         // Get recent activity (sent emails)
-        const recentEmailsResult = await query(`
-            SELECT 
-                se.id, se.recipient_email, se.subject, se.sent_at,
-                c.name as campaign_name,
-                u.email as user_email
-            FROM sent_emails se
-            LEFT JOIN campaigns c ON se.campaign_id = c.id
-            LEFT JOIN users u ON se.user_id = u.id
-            ORDER BY se.sent_at DESC
-            LIMIT 100
-        `);
+        const recentEmails = await SentEmail.find()
+            .populate('campaignId', 'name')
+            .populate('userId', 'email')
+            .sort({ sentAt: -1 })
+            .limit(100)
+            .lean();
+
+        const recentEmailsFormatted = recentEmails.map(email => ({
+            id: email._id,
+            recipient_email: email.recipientEmail,
+            subject: email.subject,
+            sent_at: email.sentAt,
+            campaign_name: email.campaignId?.name,
+            user_email: email.userId?.email
+        }));
 
         // Get emails by day (last 30 days)
-        const emailsByDayResult = await query(`
-            SELECT 
-                DATE(sent_at) as date,
-                COUNT(*) as count
-            FROM sent_emails
-            WHERE sent_at >= NOW() - INTERVAL '30 days'
-            GROUP BY DATE(sent_at)
-            ORDER BY date DESC
-        `);
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const emailsByDay = await SentEmail.aggregate([
+            { $match: { sentAt: { $gte: thirtyDaysAgo } } },
+            {
+                $group: {
+                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$sentAt' } },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { _id: -1 } },
+            { $project: { date: '$_id', count: 1, _id: 0 } }
+        ]);
 
         // Get users by day (last 30 days)
-        const usersByDayResult = await query(`
-            SELECT 
-                DATE(created_at) as date,
-                COUNT(*) as count
-            FROM users
-            WHERE created_at >= NOW() - INTERVAL '30 days'
-            GROUP BY DATE(created_at)
-            ORDER BY date DESC
-        `);
+        const usersByDay = await User.aggregate([
+            { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+            {
+                $group: {
+                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { _id: -1 } },
+            { $project: { date: '$_id', count: 1, _id: 0 } }
+        ]);
 
         // Get top users by emails sent
-        const topUsersResult = await query(`
-            SELECT 
-                u.id, u.email, u.name, u.profile_picture as picture,
-                COUNT(se.id) as emails_sent,
-                COUNT(DISTINCT c.id) as campaigns_count
-            FROM users u
-            LEFT JOIN sent_emails se ON u.id = se.user_id
-            LEFT JOIN campaigns c ON u.id = c.user_id
-            GROUP BY u.id, u.email, u.name, u.profile_picture
-            ORDER BY emails_sent DESC
-            LIMIT 10
-        `);
+        const topUsers = await SentEmail.aggregate([
+            {
+                $group: {
+                    _id: '$userId',
+                    emails_sent: { $sum: 1 }
+                }
+            },
+            { $sort: { emails_sent: -1 } },
+            { $limit: 10 },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'user'
+                }
+            },
+            { $unwind: '$user' },
+            {
+                $lookup: {
+                    from: 'campaigns',
+                    localField: '_id',
+                    foreignField: 'userId',
+                    as: 'campaigns'
+                }
+            },
+            {
+                $project: {
+                    id: '$user._id',
+                    email: '$user.email',
+                    name: '$user.name',
+                    picture: '$user.profilePicture',
+                    emails_sent: 1,
+                    campaigns_count: { $size: '$campaigns' }
+                }
+            }
+        ]);
 
         res.json({
             success: true,
             data: {
-                stats: statsResult.rows[0],
-                users: usersResult.rows,
-                campaigns: campaignsResult.rows,
-                recentEmails: recentEmailsResult.rows,
-                emailsByDay: emailsByDayResult.rows,
-                usersByDay: usersByDayResult.rows,
-                topUsers: topUsersResult.rows,
+                stats,
+                users: users.map(u => ({
+                    id: u._id,
+                    email: u.email,
+                    name: u.name,
+                    picture: u.profilePicture,
+                    created_at: u.createdAt,
+                    updated_at: u.updatedAt
+                })),
+                campaigns: campaignsWithCounts,
+                recentEmails: recentEmailsFormatted,
+                emailsByDay,
+                usersByDay,
+                topUsers,
             },
         });
     } catch (error) {
