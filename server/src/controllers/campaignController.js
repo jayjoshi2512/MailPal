@@ -1,4 +1,5 @@
-import { query, transaction } from '../config/database.js';
+import Campaign from '../models/Campaign.js';
+import SentEmail from '../models/SentEmail.js';
 
 /**
  * Get all campaigns for the authenticated user
@@ -6,42 +7,42 @@ import { query, transaction } from '../config/database.js';
  */
 export const getCampaigns = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { status, limit = 50, offset = 0 } = req.query;
 
-    let queryText = `
-      SELECT 
-        c.*,
-        COUNT(DISTINCT se.id) as total_sent
-      FROM campaigns c
-      LEFT JOIN sent_emails se ON c.id = se.campaign_id
-      WHERE c.user_id = $1 
-      AND (c.is_active = true OR c.is_active IS NULL)
-      AND c.name != 'Manual Emails'
-    `;
-
-    const params = [userId];
+    const query = {
+      userId,
+      $or: [{ isActive: true }, { isActive: { $exists: false } }],
+      name: { $ne: 'Manual Emails' }
+    };
 
     if (status) {
-      queryText += ` AND c.status = $${params.length + 1}`;
-      params.push(status);
+      query.status = status;
     }
 
-    queryText += `
-      GROUP BY c.id
-      ORDER BY c.created_at DESC
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-    `;
+    const campaigns = await Campaign.find(query)
+      .sort({ createdAt: -1 })
+      .skip(parseInt(offset))
+      .limit(parseInt(limit))
+      .lean();
 
-    params.push(limit, offset);
-
-    const result = await query(queryText, params);
+    // Get sent count for each campaign
+    const campaignsWithStats = await Promise.all(
+      campaigns.map(async (campaign) => {
+        const sentCount = await SentEmail.countDocuments({ campaignId: campaign._id });
+        return { 
+          ...campaign, 
+          id: campaign._id, // Add id alias for frontend compatibility
+          total_sent: sentCount 
+        };
+      })
+    );
 
     res.json({
       success: true,
       data: {
-        campaigns: result.rows,
-        total: result.rowCount,
+        campaigns: campaignsWithStats,
+        total: campaignsWithStats.length,
       },
     });
   } catch (error) {
@@ -59,41 +60,34 @@ export const getCampaigns = async (req, res) => {
 export const getCampaignById = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
-    console.log(`[getCampaignById] Campaign ID: ${id}, User ID: ${userId}`);
+    const campaign = await Campaign.findOne({ _id: id, userId }).lean();
 
-    const result = await query(
-      `SELECT * FROM campaigns WHERE id = $1 AND user_id = $2`,
-      [id, userId]
-    );
-
-    if (result.rows.length === 0) {
+    if (!campaign) {
       return res.status(404).json({
         success: false,
         error: 'Campaign not found',
       });
     }
 
-    const campaign = result.rows[0];
-    console.log(`[getCampaignById] Campaign status: ${campaign.status}`);
-    
-    // Always fetch sent emails for campaign, not just when completed
-    const sentResult = await query(
-      `SELECT id, recipient_email, recipient_name, subject, sent_at 
-       FROM sent_emails 
-       WHERE campaign_id = $1 AND user_id = $2
-       ORDER BY sent_at DESC`,
-      [id, userId]
-    );
-    const sentEmails = sentResult.rows;
-    console.log(`[getCampaignById] Sent emails found: ${sentEmails.length}`, sentEmails);
+    // Get sent emails for this campaign
+    const sentEmails = await SentEmail.find({ campaignId: id, userId })
+      .select('recipientEmail recipientName subject sentAt')
+      .sort({ sentAt: -1 })
+      .lean();
 
     res.json({
       success: true,
       data: { 
-        campaign,
-        sentEmails 
+        campaign: {
+          ...campaign,
+          id: campaign._id // Add id alias for frontend compatibility
+        },
+        sentEmails: sentEmails.map(email => ({
+          ...email,
+          id: email._id
+        }))
       },
     });
   } catch (error) {
@@ -110,31 +104,25 @@ export const getCampaignById = async (req, res) => {
  */
 export const createCampaign = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const {
+    const userId = req.user._id;
+    const { name, subject, body, attachments } = req.body;
+
+    const campaign = await Campaign.create({
+      userId,
       name,
       subject,
       body,
-      attachments,
-    } = req.body;
-
-    const result = await query(
-      `INSERT INTO campaigns 
-       (user_id, name, subject, body, attachments)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [
-        userId,
-        name,
-        subject,
-        body,
-        attachments ? JSON.stringify(attachments) : null,
-      ]
-    );
+      attachments: attachments || [],
+    });
 
     res.status(201).json({
       success: true,
-      data: { campaign: result.rows[0] },
+      data: { 
+        campaign: {
+          ...campaign.toObject(),
+          id: campaign._id
+        }
+      },
       message: 'Campaign created successfully',
     });
   } catch (error) {
@@ -152,51 +140,35 @@ export const createCampaign = async (req, res) => {
 export const updateCampaign = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user._id;
     const updates = req.body;
 
-    // Build dynamic update query
     const allowedFields = [
-      'name',
-      'subject',
-      'body',
-      'status',
-      'daily_limit',
-      'delay_min',
-      'delay_max',
-      'track_opens',
-      'track_clicks',
-      'attachments',
+      'name', 'subject', 'body', 'status', 'dailyLimit',
+      'delayMin', 'delayMax', 'trackOpens', 'trackClicks', 'attachments'
     ];
 
-    const setClause = [];
-    const params = [id, userId];
-    let paramIndex = 3;
-
+    const updateData = {};
     Object.keys(updates).forEach((key) => {
       if (allowedFields.includes(key)) {
-        setClause.push(`${key} = $${paramIndex}`);
-        params.push(updates[key]);
-        paramIndex++;
+        updateData[key] = updates[key];
       }
     });
 
-    if (setClause.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       return res.status(400).json({
         success: false,
         error: 'No valid fields to update',
       });
     }
 
-    const result = await query(
-      `UPDATE campaigns 
-       SET ${setClause.join(', ')}, updated_at = NOW()
-       WHERE id = $1 AND user_id = $2
-       RETURNING *`,
-      params
+    const campaign = await Campaign.findOneAndUpdate(
+      { _id: id, userId },
+      updateData,
+      { new: true }
     );
 
-    if (result.rows.length === 0) {
+    if (!campaign) {
       return res.status(404).json({
         success: false,
         error: 'Campaign not found',
@@ -205,7 +177,12 @@ export const updateCampaign = async (req, res) => {
 
     res.json({
       success: true,
-      data: { campaign: result.rows[0] },
+      data: { 
+        campaign: {
+          ...campaign.toObject(),
+          id: campaign._id
+        }
+      },
       message: 'Campaign updated successfully',
     });
   } catch (error) {
@@ -223,14 +200,15 @@ export const updateCampaign = async (req, res) => {
 export const deleteCampaign = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
-    const result = await query(
-      'UPDATE campaigns SET is_active = false, updated_at = NOW() WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
+    const campaign = await Campaign.findOneAndUpdate(
+      { _id: id, userId },
+      { isActive: false },
+      { new: true }
     );
 
-    if (result.rows.length === 0) {
+    if (!campaign) {
       return res.status(404).json({
         success: false,
         error: 'Campaign not found',
@@ -256,30 +234,41 @@ export const deleteCampaign = async (req, res) => {
 export const getCampaignAnalytics = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
-    // Verify campaign ownership
-    const campaignCheck = await query(
-      'SELECT id FROM campaigns WHERE id = $1 AND user_id = $2',
-      [id, userId]
-    );
+    const campaign = await Campaign.findOne({ _id: id, userId });
 
-    if (campaignCheck.rows.length === 0) {
+    if (!campaign) {
       return res.status(404).json({
         success: false,
         error: 'Campaign not found',
       });
     }
 
-    // Get analytics from view
-    const result = await query(
-      'SELECT * FROM campaign_analytics WHERE campaign_id = $1',
-      [id]
-    );
+    const CampaignContact = (await import('../models/CampaignContact.js')).default;
+    
+    const [totalContacts, sentCount, failedCount, pendingCount, emailsSent] = await Promise.all([
+      CampaignContact.countDocuments({ campaignId: id, isActive: true }),
+      CampaignContact.countDocuments({ campaignId: id, isActive: true, status: 'sent' }),
+      CampaignContact.countDocuments({ campaignId: id, isActive: true, status: 'failed' }),
+      CampaignContact.countDocuments({ campaignId: id, isActive: true, status: 'pending' }),
+      SentEmail.countDocuments({ campaignId: id })
+    ]);
 
     res.json({
       success: true,
-      data: { analytics: result.rows[0] || {} },
+      data: {
+        analytics: {
+          campaign_id: id,
+          campaign_name: campaign.name,
+          status: campaign.status,
+          total_contacts: totalContacts,
+          sent_count: sentCount,
+          failed_count: failedCount,
+          pending_count: pendingCount,
+          emails_sent: emailsSent
+        }
+      },
     });
   } catch (error) {
     console.error('Get analytics error:', error);

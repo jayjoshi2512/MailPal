@@ -12,6 +12,7 @@ const apiClient = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
+    timeout: 30000, // 30 seconds - enough for single operations, bulk runs in background
 });
 
 // Request interceptor to add auth token
@@ -34,7 +35,11 @@ apiClient.interceptors.response.use(
     (error) => {
         // Handle network errors (no response from server)
         if (!error.response) {
-            const networkError = new Error('Network error. Please check your connection and try again.');
+            const networkError = new Error(
+                error.code === 'ECONNABORTED' 
+                    ? 'Request timed out. Please try again.' 
+                    : 'Network error. Please check your connection and try again.'
+            );
             networkError.isNetworkError = true;
             throw networkError;
         }
@@ -48,10 +53,8 @@ apiClient.interceptors.response.use(
         apiError.isAuthError = status === 401;
         apiError.isServerError = status >= 500;
         
-        // Only clear auth for explicit 401 responses (not network errors)
+        // Handle 401 - session expired
         if (status === 401) {
-            // Don't auto-logout here - let the AuthContext handle it
-            // This allows for proper state management
             apiError.message = 'Session expired. Please log in again.';
         }
         
@@ -410,9 +413,43 @@ export const dashboardAPI = {
 export const emailAPI = {
     /**
      * Send email with optional attachments
+     * For bulk emails (>1 recipient), returns a jobId for tracking
      */
     send: async (emailData) => {
         return apiClient.post('/emails/test', emailData);
+    },
+    
+    /**
+     * Get email job status (for bulk sends)
+     */
+    getJobStatus: async (jobId) => {
+        return apiClient.get(`/emails/job/${jobId}`);
+    },
+    
+    /**
+     * Poll job status until complete
+     * Returns final result
+     */
+    pollJobUntilComplete: async (jobId, onProgress, maxAttempts = 300) => {
+        let attempts = 0;
+        const pollInterval = 2000; // 2 seconds
+        
+        while (attempts < maxAttempts) {
+            const result = await apiClient.get(`/emails/job/${jobId}`);
+            
+            if (onProgress) {
+                onProgress(result.data);
+            }
+            
+            if (result.data.status === 'completed' || result.data.status === 'failed') {
+                return result.data;
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+            attempts++;
+        }
+        
+        throw new Error('Job polling timed out');
     },
     
     /**

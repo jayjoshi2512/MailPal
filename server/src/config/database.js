@@ -1,85 +1,64 @@
-import pg from 'pg';
+import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const { Pool } = pg;
+// MongoDB connection URI
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/mailpal';
 
-// PostgreSQL connection pool configuration
-const poolConfig = process.env.DATABASE_URL
-  ? {
-      connectionString: process.env.DATABASE_URL,
-      ssl: {
-        rejectUnauthorized: false,
-      },
-      max: 3,
-      idleTimeoutMillis: 10000,
-      connectionTimeoutMillis: 30000,
-    }
-  : {
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 5432,
-      database: process.env.DB_NAME || 'MailPal',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD,
-      max: 5,
-      idleTimeoutMillis: 10000,
-      connectionTimeoutMillis: 2000,
-    };
+// Mongoose connection options
+const options = {
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+};
 
-console.log('🔧 Connecting to PostgreSQL...');
-
-const pool = new Pool(poolConfig);
-
-// Test database connection
-pool.on('connect', () => {
-  console.log('✅ Connected to PostgreSQL database');
-});
-
-pool.on('error', (err) => {
-  console.error('❌ Unexpected error on idle client', err);
-});
-
-// Query helper
-export const query = async (text, params) => {
-  const start = Date.now();
+// Connect to MongoDB
+export const connectDB = async () => {
   try {
-    const res = await pool.query(text, params);
-    const duration = Date.now() - start;
-    console.log('Executed query', { text: text.substring(0, 50), duration, rows: res.rowCount });
-    return res;
+    await mongoose.connect(MONGODB_URI, options);
+    console.log('✅ Connected to MongoDB database');
+    return true;
   } catch (error) {
-    console.error('Database query error:', error);
-    throw error;
+    console.error('❌ MongoDB connection error:', error);
+    process.exit(1);
   }
 };
 
-// Transaction helper
-export const transaction = async (callback) => {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const result = await callback(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
-};
+// Handle connection events
+mongoose.connection.on('connected', () => {
+  console.log('✅ Mongoose connected to MongoDB');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('❌ Mongoose connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('⚠️ Mongoose disconnected from MongoDB');
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  await mongoose.connection.close();
+  console.log('MongoDB connection closed due to app termination');
+  process.exit(0);
+});
 
 // Test connection function
 export const testConnection = async () => {
   try {
-    const result = await query('SELECT NOW()');
-    console.log('✅ Database connection test successful:', result.rows[0]);
-    return true;
+    const state = mongoose.connection.readyState;
+    if (state === 1) {
+      console.log('✅ Database connection test successful');
+      return true;
+    }
+    console.log('⚠️ Database not connected, state:', state);
+    return false;
   } catch (error) {
     console.error('❌ Database connection test failed:', error);
     return false;
   }
 };
 
-export default pool;
+export default mongoose;

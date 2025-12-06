@@ -39,8 +39,8 @@ const Campaigns = () => {
     }, []);
 
     const filteredCampaigns = campaigns.filter(campaign => 
-        campaign.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        campaign.subject.toLowerCase().includes(searchQuery.toLowerCase())
+        (campaign.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (campaign.subject || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     const openDeleteDialog = (campaign, e) => {
@@ -50,9 +50,10 @@ const Campaigns = () => {
 
     const handleDelete = async () => {
         if (!deleteDialog.campaign) return;
+        const campaignId = deleteDialog.campaign.id || deleteDialog.campaign._id;
         try {
-            await campaignsAPI.delete(deleteDialog.campaign.id);
-            setCampaigns(campaigns.filter(c => c.id !== deleteDialog.campaign.id));
+            await campaignsAPI.delete(campaignId);
+            setCampaigns(campaigns.filter(c => (c.id || c._id) !== campaignId));
             toast.success('Campaign deleted');
             setDeleteDialog({ open: false, campaign: null });
         } catch (error) {
@@ -75,7 +76,7 @@ const Campaigns = () => {
                     ) : filteredCampaigns.length === 0 ? (
                         <EmptyCampaigns 
                             searchQuery={searchQuery} 
-                            onCreateCampaign={() => navigate('/campaigns/new')} 
+                            onNewCampaign={() => navigate('/campaigns/new')} 
                         />
                     ) : (
                         <CampaignsTable 

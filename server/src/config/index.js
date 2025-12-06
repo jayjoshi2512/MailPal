@@ -8,13 +8,9 @@ export default {
   nodeEnv: process.env.NODE_ENV || 'development',
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
 
-  // Database Configuration
-  database: {
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
-    name: process.env.DB_NAME || 'MailPal',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD,
+  // MongoDB Configuration
+  mongodb: {
+    uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/mailpal',
   },
 
   // JWT Configuration

@@ -19,12 +19,12 @@ const RecipientsPanel = ({
     );
 
     const filteredSentEmails = sentEmails.filter(e => 
-        e.recipient_email?.toLowerCase().includes(searchQuery.toLowerCase())
+        e.recipientEmail?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (
-        <Card className="col-span-2">
-            <CardHeader className="pb-2">
+        <Card className="col-span-2 flex flex-col max-h-[calc(100vh-16rem)] min-h-[500px]">
+            <CardHeader className="pb-2 shrink-0">
                 <CardTitle className="text-sm flex items-center justify-between">
                     <span className="flex items-center gap-2">
                         <i className="ri-group-line text-green-600"></i>Recipients
@@ -41,32 +41,32 @@ const RecipientsPanel = ({
                     </div>
                 </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 flex flex-col min-h-0">
                 {campaign?.status === 'completed' ? (
                     // Show sent emails for completed campaigns
                     sentEmails.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
+                        <div className="text-center py-8 text-muted-foreground flex-1 flex flex-col justify-center">
                             <i className="ri-mail-check-line text-3xl mb-2"></i>
                             <p className="text-sm">No sent emails recorded</p>
                         </div>
                     ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex-1 flex flex-col min-h-0">
                             <Input 
                                 placeholder="Search..." 
                                 value={searchQuery} 
                                 onChange={e => setSearchQuery(e.target.value)} 
-                                className="h-8 text-xs" 
+                                className="h-8 text-xs shrink-0" 
                             />
-                            <div className="max-h-[280px] overflow-y-auto scrollbar-hide space-y-1">
+                            <div className="overflow-y-auto scrollbar-hide space-y-1 flex-1">
                                 {filteredSentEmails.map((email, i) => (
                                     <div key={i} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 text-xs">
                                         <div className="w-6 h-6 rounded-full bg-green-600 text-white flex items-center justify-center text-[10px] font-medium shrink-0">
                                             <i className="ri-check-line"></i>
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <p className="truncate font-medium">{email.recipient_email}</p>
+                                            <p className="truncate font-medium">{email.recipientEmail}</p>
                                             <p className="text-muted-foreground truncate">
-                                                {email.recipient_name || 'No name'} • {new Date(email.sent_at).toLocaleString()}
+                                                {email.recipientName || 'No name'} • {new Date(email.sentAt).toLocaleString()}
                                             </p>
                                         </div>
                                         <Badge variant="outline" className="text-[10px] text-green-600">Sent</Badge>
@@ -76,22 +76,22 @@ const RecipientsPanel = ({
                         </div>
                     )
                 ) : recipients.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
+                    <div className="text-center py-8 text-muted-foreground flex-1 flex flex-col justify-center">
                         <i className="ri-user-add-line text-3xl mb-2"></i>
                         <p className="text-sm">No recipients</p>
-                        <Button size="sm" variant="outline" className="mt-2" onClick={onAddClick}>
+                        <Button size="sm" variant="outline" className="mt-2 mx-auto" onClick={onAddClick}>
                             Add Recipient
                         </Button>
                     </div>
                 ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-2 flex-1 flex flex-col min-h-0">
                         <Input 
                             placeholder="Search..." 
                             value={searchQuery} 
                             onChange={e => setSearchQuery(e.target.value)} 
-                            className="h-8 text-xs" 
+                            className="h-8 text-xs shrink-0" 
                         />
-                        <div className="max-h-[280px] overflow-y-auto scrollbar-hide space-y-1">
+                        <div className="overflow-y-auto scrollbar-hide space-y-1 flex-1">
                             {filteredRecipients.map((r, i) => (
                                 <div key={i} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 text-xs group">
                                     <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-medium shrink-0">

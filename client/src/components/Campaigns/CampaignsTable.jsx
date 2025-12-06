@@ -35,22 +35,23 @@ const CampaignsTable = ({ campaigns, onDelete }) => {
                     <tbody>
                         {campaigns.map((campaign) => {
                             const statusBadge = getStatusBadge(campaign.status);
+                            const campaignId = campaign.id || campaign._id;
                             return (
                                 <tr 
-                                    key={campaign.id} 
+                                    key={campaignId} 
                                     className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
-                                    onClick={() => navigate(`/campaigns/${campaign.id}`)}
+                                    onClick={() => navigate(`/campaigns/${campaignId}`)}
                                 >
                                     <td className="p-3">
-                                        <span className="font-medium text-sm">{campaign.name}</span>
+                                        <span className="font-medium text-sm">{campaign.name || 'Untitled'}</span>
                                     </td>
                                     <td className="p-3">
-                                        <span className="text-sm text-muted-foreground truncate max-w-[200px] block">{campaign.subject}</span>
+                                        <span className="text-sm text-muted-foreground truncate max-w-[200px] block">{campaign.subject || 'No subject'}</span>
                                     </td>
                                     <td className="p-3 text-center">
                                         <Badge variant={statusBadge.variant} className="text-xs">
                                             <i className={`${statusBadge.icon} mr-1`}></i>
-                                            {campaign.status}
+                                            {campaign.status || 'draft'}
                                         </Badge>
                                     </td>
                                     <td className="p-3 text-center">
@@ -58,7 +59,7 @@ const CampaignsTable = ({ campaigns, onDelete }) => {
                                     </td>
                                     <td className="p-3">
                                         <span className="text-xs text-muted-foreground">
-                                            {new Date(campaign.created_at).toLocaleDateString()}
+                                            {campaign.createdAt ? new Date(campaign.createdAt).toLocaleDateString() : campaign.created_at ? new Date(campaign.created_at).toLocaleDateString() : 'N/A'}
                                         </span>
                                     </td>
                                     <td className="p-3 text-right">
@@ -69,7 +70,7 @@ const CampaignsTable = ({ campaigns, onDelete }) => {
                                                 className="h-7 w-7 p-0"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    navigate(`/campaigns/${campaign.id}`);
+                                                    navigate(`/campaigns/${campaignId}`);
                                                 }}
                                             >
                                                 <i className="ri-eye-line text-sm"></i>

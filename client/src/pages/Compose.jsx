@@ -15,9 +15,11 @@ import ComposeActions from '@/components/Compose/ComposeActions';
 import DiscardModal from '@/components/Compose/DiscardModal';
 import ContactsSidebar from '@/components/Compose/ContactsSidebar';
 import RichTextEditor from '@/components/Compose/RichTextEditor';
+import SendProgressCard from '@/components/CampaignDetail/SendProgressCard';
 import { useEmailRecipients, useAttachments } from '@/components/Compose/useComposeForm';
 import { formatFileSize } from '@/components/Compose/emailUtils';
-import { uploadAPI, emailAPI } from '@/services/api';
+import { emailAPI, aiAPI } from '@/services/api';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/components/ui/dialog';
 
 /**
  * Enhanced Compose Page - Production-ready email composition
@@ -59,10 +61,17 @@ const ComposeEnhanced = () => {
     const [subject, setSubject] = useState('');
     const [body, setBody] = useState('');
     const [isSending, setIsSending] = useState(false);
-    const [isUploading, setIsUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState({});
-    const [uploadedFiles, setUploadedFiles] = useState([]); // Store uploaded file metadata with server paths
     const [showDiscardModal, setShowDiscardModal] = useState(false);
+    
+    // AI Generation State
+    const [showAiModal, setShowAiModal] = useState(false);
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [aiTone, setAiTone] = useState('professional');
+    const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+    
+    // Email sending progress state (for bulk emails)
+    const [sendingProgress, setSendingProgress] = useState(null);
+    // { jobId, status, total, sent, failed, progress, errors }
     
     // History state
     const [showHistory, setShowHistory] = useState(false);
@@ -72,6 +81,31 @@ const ComposeEnhanced = () => {
     const [historyPage, setHistoryPage] = useState(1);
     const [historyPagination, setHistoryPagination] = useState({ total: 0, totalPages: 0 });
     const [selectedEmail, setSelectedEmail] = useState(null);
+
+    // AI Generation Handler
+    const handleAiGenerate = async () => {
+        if (!aiPrompt.trim()) {
+            toast.error('Please describe what you want to write');
+            return;
+        }
+
+        setIsGeneratingAi(true);
+        try {
+            const res = await aiAPI.generateTemplate(aiPrompt, aiTone, []);
+            if (res.success && res.data) {
+                setSubject(res.data.subject || '');
+                setBody(res.data.body || '');
+                setShowAiModal(false);
+                toast.success('Email generated successfully!');
+            } else {
+                throw new Error(res.error || 'Generation failed');
+            }
+        } catch (err) {
+            toast.error(err.message || 'Failed to generate email');
+        } finally {
+            setIsGeneratingAi(false);
+        }
+    };
 
     // Fetch compose history
     const fetchHistory = useCallback(async (page = 1, search = '') => {
@@ -113,7 +147,7 @@ const ComposeEnhanced = () => {
         navigate('/', { replace: true });
     }, [logout, navigate]);
 
-    // Handle file selection with simple upload
+    // Handle file selection - files kept in browser memory only (no server upload)
     const handleFileChange = useCallback(async (e) => {
         const files = Array.from(e.target.files || []);
         
@@ -134,69 +168,13 @@ const ComposeEnhanced = () => {
             return;
         }
 
-        // Add files to local state for immediate UI feedback
-        const startIndex = attachments.length;
+        // Add files to local state (kept in browser memory, NOT uploaded to server)
         addAttachments(files);
-
-        // Initialize progress for each file
-        const initialProgress = {};
-        files.forEach((_, idx) => {
-            initialProgress[startIndex + idx] = 0;
-        });
-        setUploadProgress(initialProgress);
-
-        // Upload files immediately (like Gmail)
-        setIsUploading(true);
-        
-        try {
-            // Upload files using simple upload API
-            const uploadedFilesList = [];
-            
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                const progressIndex = startIndex + i;
-                
-                try {
-                    const uploadResult = await uploadAPI.uploadFile(file, (progressEvent) => {
-                        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                        setUploadProgress(prev => ({
-                            ...prev,
-                            [progressIndex]: percentCompleted
-                        }));
-                    });
-                    
-                    if (uploadResult.success && uploadResult.data.file) {
-                        uploadedFilesList.push(uploadResult.data.file);
-                        setUploadProgress(prev => ({
-                            ...prev,
-                            [progressIndex]: 100
-                        }));
-                    }
-                } catch (fileError) {
-                    console.error(`Failed to upload ${file.name}:`, fileError);
-                    toast.error(`Failed to upload ${file.name}`);
-                    removeAttachment(progressIndex);
-                }
-            }
-            
-            if (uploadedFilesList.length > 0) {
-                setUploadedFiles(prev => [...prev, ...uploadedFilesList]);
-                toast.success(`${uploadedFilesList.length} file(s) uploaded successfully`);
-                
-                setTimeout(() => {
-                    setUploadProgress({});
-                }, 1000);
-            }
-        } catch (uploadError) {
-            console.error('Failed to upload files:', uploadError);
-            toast.error('Failed to upload files. Please try again.');
-        } finally {
-            setIsUploading(false);
-        }
+        toast.success(`${files.length} file(s) added`);
 
         // Reset input
         e.target.value = '';
-    }, [attachments.length, addAttachments, removeAttachment]);
+    }, [attachments.length, addAttachments]);
 
     // Trigger file input
     const handleAttachClick = useCallback(() => {
@@ -206,8 +184,6 @@ const ComposeEnhanced = () => {
     // Remove attachment
     const handleRemoveAttachment = useCallback((index) => {
         removeAttachment(index);
-        // Also remove from uploadedFiles
-        setUploadedFiles(prev => prev.filter((_, i) => i !== index));
         toast.info('Attachment removed');
     }, [removeAttachment, toast]);
 
@@ -221,10 +197,23 @@ const ComposeEnhanced = () => {
         setSubject('');
         setBody('');
         clearAttachments();
-        setUploadedFiles([]);
         setShowDiscardModal(false);
         toast.info('Draft discarded');
     }, [clearRecipients, clearAttachments, toast]);
+
+    // Convert file to base64
+    const fileToBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                // Get base64 string without the data:...;base64, prefix
+                const base64 = reader.result.split(',')[1];
+                resolve(base64);
+            };
+            reader.onerror = error => reject(error);
+        });
+    };
 
     // Send email with comprehensive error handling
     const handleSendEmail = useCallback(async () => {
@@ -244,47 +233,108 @@ const ComposeEnhanced = () => {
             return;
         }
 
-        // Check if files are still uploading
-        if (isUploading) {
-            toast.error('Please wait for file uploads to complete');
-            return;
-        }
-
         setIsSending(true);
+        setSendingProgress(null);
 
         try {
-            // Prepare email data with uploaded files
+            // Convert attachments to base64 (files stay in browser memory only)
+            const attachmentsWithBase64 = await Promise.all(
+                attachments.map(async (file) => ({
+                    filename: file.name,
+                    mimetype: file.type,
+                    size: file.size,
+                    content: await fileToBase64(file)
+                }))
+            );
+
+            // Prepare email data with base64 attachments
             const emailData = {
                 to: toEmails,
                 subject,
                 body,
-                attachments: uploadedFiles.map(file => ({
-                    filename: file.name,
-                    path: file.path,
-                    size: file.size,
-                })),
+                attachments: attachmentsWithBase64,
             };
 
             // Send email via backend API
             const result = await emailAPI.send(emailData);
 
-            // Success
-            if (result.success) {
-                // Smart toast message based on recipient count
-                let successMessage;
-                if (toEmails.length === 1) {
-                    successMessage = `Email sent to ${toEmails[0]}`;
-                } else {
-                    successMessage = `Email sent to ${result.data.sent} recipients`;
+            // Check if it's a background job (bulk emails)
+            if (result.success && result.data.jobId) {
+                // Bulk email - show progress bar UI
+                const jobId = result.data.jobId;
+                const totalEmails = result.data.total;
+                
+                // Initialize progress state
+                setSendingProgress({
+                    jobId,
+                    status: 'processing',
+                    total: totalEmails,
+                    sent: 0,
+                    failed: 0,
+                    progress: 0,
+                    errors: []
+                });
+                
+                // Poll for job status
+                try {
+                    const finalResult = await emailAPI.pollJobUntilComplete(jobId, (progress) => {
+                        // Update progress bar UI
+                        setSendingProgress({
+                            jobId,
+                            status: progress.status,
+                            total: progress.total,
+                            sent: progress.sent,
+                            failed: progress.failed,
+                            progress: progress.progress,
+                            errors: progress.errors || []
+                        });
+                    });
+
+                    // Final result
+                    setSendingProgress(prev => ({
+                        ...prev,
+                        status: 'completed',
+                        sent: finalResult.sent,
+                        failed: finalResult.failed,
+                        progress: 100
+                    }));
+
+                    if (finalResult.sent > 0) {
+                        toast.success(`✅ ${finalResult.sent} emails sent successfully${finalResult.failed > 0 ? `, ${finalResult.failed} failed` : ''}`);
+                    } else {
+                        toast.error(`Failed to send emails. ${finalResult.errors?.[0]?.error || 'Unknown error'}`);
+                    }
+
+                    // Clear form after short delay to show completion
+                    setTimeout(() => {
+                        clearRecipients();
+                        setSubject('');
+                        setBody('');
+                        clearAttachments();
+                        setSendingProgress(null);
+                        refreshHistory();
+                        navigate('/dashboard');
+                    }, 2000);
+                    
+                } catch (pollError) {
+                    console.error('Poll error:', pollError);
+                    setSendingProgress(prev => ({
+                        ...prev,
+                        status: 'error',
+                        error: 'Lost connection to server. Emails may still be sending in the background.'
+                    }));
+                    toast.info('Emails are being sent in the background. Check your dashboard for status.');
                 }
-                toast.success(successMessage);
+                
+            } else if (result.success) {
+                // Single email - immediate success
+                toast.success(`Email sent to ${toEmails[0]}`);
                 
                 // Clear form
                 clearRecipients();
                 setSubject('');
                 setBody('');
                 clearAttachments();
-                setUploadedFiles([]);
                 
                 // Refresh history
                 refreshHistory();
@@ -300,10 +350,11 @@ const ComposeEnhanced = () => {
         } catch (error) {
             console.error('Failed to send email:', error);
             toast.error(error.message || 'Failed to send email. Please try again.');
+            setSendingProgress(null);
         } finally {
             setIsSending(false);
         }
-    }, [toEmails, subject, body, uploadedFiles, isUploading, clearRecipients, clearAttachments, navigate, refreshHistory]);
+    }, [toEmails, subject, body, attachments, clearRecipients, clearAttachments, navigate, refreshHistory]);
 
     // Handle contact selection from sidebar
     const handleContactSelect = useCallback((contact) => {
@@ -332,13 +383,22 @@ const ComposeEnhanced = () => {
             {/* Main content - centered between left sidebar (64) and right sidebar (72) */}
             <main className="ml-64 mr-72 mt-16 p-4 flex-1">
                 <div className="max-w-2xl mx-auto">
-                    {/* Status indicator - only show when needed */}
-                    {(isSending || isUploading) && (
+                    {/* Email Sending Progress Bar - Consistent with Campaign page */}
+                    {sendingProgress && (
+                        <SendProgressCard sendProgress={{
+                            sent: sendingProgress.sent,
+                            failed: sendingProgress.failed,
+                            total: sendingProgress.total
+                        }} />
+                    )}
+
+                    {/* Status indicator - only show when sending single email */}
+                    {isSending && !sendingProgress && (
                         <div className="flex items-center justify-end mb-3">
                             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
                                 <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse"></div>
                                 <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
-                                    {isUploading ? 'Uploading...' : 'Sending...'}
+                                    Sending...
                                 </span>
                             </div>
                         </div>
@@ -380,14 +440,70 @@ const ComposeEnhanced = () => {
                             <div className="border-t border-border/50 my-1"></div>
 
                             {/* Subject - No label, no counter */}
-                            <div className="px-4">
+                            <div className="px-4 flex items-center gap-2">
                                 <Input
                                     value={subject}
                                     onChange={(e) => setSubject(e.target.value)}
                                     placeholder="Subject"
                                     maxLength={150}
-                                    className="text-sm h-9 border-0 shadow-none focus-visible:ring-0"
+                                    className="text-sm h-9 border-0 shadow-none focus-visible:ring-0 flex-1"
                                 />
+                                <Dialog open={showAiModal} onOpenChange={setShowAiModal}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                                            <i className="ri-magic-line mr-1"></i>
+                                            AI Write
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="sm:max-w-[425px]">
+                                        <DialogHeader>
+                                            <DialogTitle className="flex items-center gap-2">
+                                                <i className="ri-magic-line text-blue-600"></i>
+                                                Write with AI
+                                            </DialogTitle>
+                                        </DialogHeader>
+                                        <div className="space-y-4 py-4">
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium">What would you like to write?</label>
+                                                <Textarea 
+                                                    placeholder="E.g., Write a follow-up email for a job application..." 
+                                                    value={aiPrompt}
+                                                    onChange={(e) => setAiPrompt(e.target.value)}
+                                                    className="min-h-[100px]"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium">Tone</label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {['professional', 'friendly', 'persuasive', 'casual', 'urgent'].map(tone => (
+                                                        <button
+                                                            key={tone}
+                                                            onClick={() => setAiTone(tone)}
+                                                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition border ${
+                                                                aiTone === tone 
+                                                                    ? 'bg-blue-600 text-white border-blue-600' 
+                                                                    : 'bg-background hover:bg-muted border-input'
+                                                            }`}
+                                                        >
+                                                            {tone.charAt(0).toUpperCase() + tone.slice(1)}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <Button 
+                                                onClick={handleAiGenerate} 
+                                                disabled={isGeneratingAi || !aiPrompt.trim()}
+                                                className="w-full"
+                                            >
+                                                {isGeneratingAi ? (
+                                                    <><i className="ri-loader-4-line animate-spin mr-2"></i>Generating...</>
+                                                ) : (
+                                                    <><i className="ri-magic-line mr-2"></i>Generate Email</>
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
                             </div>
 
                             {/* Separator */}
@@ -410,7 +526,6 @@ const ComposeEnhanced = () => {
                                         attachments={attachments}
                                         onRemoveAttachment={handleRemoveAttachment}
                                         formatFileSize={formatFileSize}
-                                        uploadProgress={uploadProgress}
                                     />
                                 </div>
                             )}
@@ -432,7 +547,6 @@ const ComposeEnhanced = () => {
                                     onAttach={handleAttachClick}
                                     onDiscard={handleDiscard}
                                     isSending={isSending}
-                                    isUploading={isUploading}
                                     hasContent={hasContent}
                                 />
                             </div>

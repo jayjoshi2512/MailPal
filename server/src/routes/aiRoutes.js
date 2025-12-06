@@ -1,5 +1,9 @@
 import express from 'express';
+import dotenv from 'dotenv';
 import { authenticate } from '../middleware/auth.js';
+
+// Ensure env vars are loaded
+dotenv.config();
 
 const router = express.Router();
 
@@ -11,7 +15,7 @@ router.post('/generate-template', authenticate, async (req, res) => {
     try {
         const { prompt, tone, variables } = req.body;
 
-        if (!prompt) {
+        if (!prompt || !prompt.trim()) {
             return res.status(400).json({
                 success: false,
                 error: 'Prompt is required',
@@ -66,10 +70,18 @@ Return ONLY a valid JSON object with this exact format:
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            console.error('Gemini API error:', errorData);
+            console.error('Gemini API error:', JSON.stringify(errorData, null, 2));
+            
+            if (errorData.error?.status === 'PERMISSION_DENIED') {
+                return res.status(403).json({
+                    success: false,
+                    error: 'API Key invalid or expired. Please check your Google AI Studio key.',
+                });
+            }
+
             return res.status(500).json({
                 success: false,
-                error: 'Failed to generate template. Please check your API key.',
+                error: errorData.error?.message || 'Failed to generate template.',
             });
         }
 

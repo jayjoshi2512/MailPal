@@ -123,12 +123,13 @@ const CampaignDetail = () => {
                         to: [email], 
                         subject: replaceVariables(campaign.subject, vars), 
                         body: replaceVariables(campaign.body, vars),
-                        campaignId: parseInt(id),
+                        campaignId: id,
                         recipientName: vars.name || null
                     });
                     setSendProgress(prev => ({ ...prev, sent: prev.sent + 1 }));
                     localStorage.setItem('emails_sent_today', String(parseInt(localStorage.getItem('emails_sent_today') || '0') + 1));
-                } catch {
+                } catch (error) {
+                    console.error('Failed to send email to', email, error);
                     setSendProgress(prev => ({ ...prev, failed: prev.failed + 1 }));
                 }
                 if (i < toSend - 1) await new Promise(r => setTimeout(r, 1500));

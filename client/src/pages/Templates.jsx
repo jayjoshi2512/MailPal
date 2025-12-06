@@ -62,7 +62,7 @@ const Templates = () => {
     };
 
     // Filter to only show user's own templates (exclude public templates where user_id is null)
-    const myTemplates = templates.filter(t => t.user_id !== null);
+    const myTemplates = templates.filter(t => (t.user_id ?? t.userId) !== null);
     
     const filteredTemplates = myTemplates.filter(t => {
         const query = searchQuery.toLowerCase();
@@ -91,13 +91,15 @@ const Templates = () => {
 
         setIsSaving(true);
         try {
+            const templateId = editingTemplate?.id || editingTemplate?._id;
             const response = editingTemplate 
-                ? await templatesAPI.update(editingTemplate.id, formData)
+                ? await templatesAPI.update(templateId, formData)
                 : await templatesAPI.create(formData);
             
             if (response.success) {
                 toast.success(editingTemplate ? 'Template updated' : 'Template created');
                 setShowDialog(false);
+                setEditingTemplate(null);
                 fetchTemplates();
             } else {
                 toast.error(response.error || 'Failed to save template');
@@ -111,9 +113,11 @@ const Templates = () => {
 
     const handleToggleFavorite = async (template) => {
         try {
-            const response = await templatesAPI.toggleFavorite(template.id);
+            const templateId = template.id || template._id;
+            const response = await templatesAPI.toggleFavorite(templateId);
             if (response.success) {
-                toast.success(template.is_favorite ? 'Removed from favorites' : 'Added to favorites');
+                const isFav = template.is_favorite ?? template.isFavorite;
+                toast.success(isFav ? 'Removed from favorites' : 'Added to favorites');
                 fetchTemplates();
             }
         } catch (error) {
@@ -126,7 +130,8 @@ const Templates = () => {
         
         setIsDeleting(true);
         try {
-            await templatesAPI.delete(deleteDialog.template.id);
+            const templateId = deleteDialog.template.id || deleteDialog.template._id;
+            await templatesAPI.delete(templateId);
             toast.success('Template deleted');
             setDeleteDialog({ open: false, template: null });
             fetchTemplates();
@@ -233,7 +238,7 @@ const Templates = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {filteredTemplates.map((template) => (
                                         <TemplateCard 
-                                            key={template.id}
+                                            key={template.id || template._id}
                                             template={template}
                                             onCopy={handleCopy}
                                             onEdit={handleEdit}
