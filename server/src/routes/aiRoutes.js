@@ -16,62 +16,69 @@ const parseAIResponse = (rawText) => {
         .replace(/^\s*json\s*/i, '')
         .trim();
     
-    // Try to find and parse JSON
+    let subject = '';
+    let body = '';
+    
     try {
-        // Find JSON object boundaries
+        // Try JSON parsing first
         const startIdx = cleanText.indexOf('{');
         const endIdx = cleanText.lastIndexOf('}');
         
-        if (startIdx === -1 || endIdx === -1) {
-            throw new Error('No JSON found');
+        if (startIdx !== -1 && endIdx !== -1) {
+            const jsonStr = cleanText.substring(startIdx, endIdx + 1);
+            const parsed = JSON.parse(jsonStr);
+            
+            subject = String(parsed.subject || parsed.Subject || '').trim();
+            body = String(parsed.body || parsed.Body || '').trim();
+            
+            // Convert escape sequences
+            body = body.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+            
+            if (subject && body) {
+                return { subject, body };
+            }
         }
-        
-        const jsonStr = cleanText.substring(startIdx, endIdx + 1);
-        const parsed = JSON.parse(jsonStr);
-        
-        // Extract and clean subject
-        let subject = String(parsed.subject || parsed.Subject || '').trim();
-        subject = subject.replace(/^["'`]+|["'`]+$/g, '');
-        
-        // Extract and clean body - preserve newlines
-        let body = String(parsed.body || parsed.Body || '').trim();
-        body = body.replace(/^["'`]+|["'`]+$/g, '');
-        body = body.replace(/\\n/g, '\n'); // Convert \n to actual newlines
-        body = body.replace(/\\"/g, '"'); // Unescape quotes
-        
-        if (!subject || !body) {
-            throw new Error('Missing subject or body');
-        }
-        
-        return {
-            subject: subject,
-            body: body
-        };
-        
-    } catch (parseError) {
-        // Manual extraction as last resort
-        let subject = '';
-        let body = '';
-        
-        // Try to extract subject
-        const subjectMatch = cleanText.match(/"subject"\s*:\s*"([^"]+)"/i);
+    } catch (e) {
+        // JSON parsing failed, continue to regex
+    }
+    
+    // Regex extraction fallback
+    try {
+        // Extract subject - match until closing quote
+        const subjectMatch = cleanText.match(/"subject"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
         if (subjectMatch) {
-            subject = subjectMatch[1];
+            subject = subjectMatch[1].replace(/\\"/g, '"').trim();
         }
         
-        // Try to extract body
-        const bodyMatch = cleanText.match(/"body"\s*:\s*"([\s\S]+?)"\s*}/i);
+        // Extract body - match multi-line content until closing quote before }
+        const bodyMatch = cleanText.match(/"body"\s*:\s*"((?:[^"\\]|\\.)*)"/i);
         if (bodyMatch) {
             body = bodyMatch[1]
                 .replace(/\\n/g, '\n')
-                .replace(/\\"/g, '"');
+                .replace(/\\"/g, '"')
+                .replace(/\\t/g, '\t')
+                .trim();
         }
         
-        return {
-            subject: subject || 'Email Subject',
-            body: body || cleanText.substring(0, 500)
-        };
+        if (!subject || !body) {
+            // Try alternate approach - split by "subject" and "body"
+            const parts = cleanText.split(/"(?:subject|body)"\s*:\s*"/i);
+            if (parts.length >= 3) {
+                subject = parts[1].split('"')[0].trim();
+                body = parts[2].split('"')[0]
+                    .replace(/\\n/g, '\n')
+                    .replace(/\\"/g, '"')
+                    .trim();
+            }
+        }
+    } catch (e) {
+        // Fallback to returning first 100 chars as subject
     }
+    
+    return {
+        subject: subject || 'Email Subject',
+        body: body || 'Unable to generate email body'
+    };
 };
 
 // Helper function to call Gemini API
