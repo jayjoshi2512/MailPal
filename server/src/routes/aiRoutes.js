@@ -52,6 +52,8 @@ router.post('/generate-template', authenticate, async (req, res) => {
             });
         }
 
+        console.log('🔑 API Key present:', apiKey ? `${apiKey.substring(0, 10)}...` : 'MISSING');
+
         // Build the AI prompt
         const variablesList = variables?.length > 0 
             ? variables.map(v => `{{${v}}}`).join(', ')
@@ -74,12 +76,13 @@ Requirements:
 Return ONLY a valid JSON object with this exact format:
 {"subject": "your subject line here", "body": "your email body here"}`;
 
-        // Try different model names (API changes frequently)
+        // Try different model names (100% FREE models from your API key)
         const modelNames = [
-            'gemini-1.5-flash-latest',
-            'gemini-1.5-flash',
-            'gemini-1.5-pro-latest',
-            'gemini-pro'
+            'gemini-2.5-flash',          // Latest stable model - BEST
+            'gemini-flash-latest',       // Always latest flash
+            'gemini-2.0-flash',          // Stable 2.0
+            'gemini-2.5-flash-lite',     // Lighter version
+            'gemini-2.0-flash-lite'      // Lighter 2.0
         ];
 
         let response;
