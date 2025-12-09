@@ -146,16 +146,27 @@ Return ONLY a valid JSON object with this exact format:
         // Parse the JSON response
         let result;
         try {
+            // Remove markdown code blocks if present
+            let cleanText = generatedText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            
             // Try to extract JSON from the response
-            const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
+            const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 result = JSON.parse(jsonMatch[0]);
+                console.log('✅ Parsed JSON successfully:', { 
+                    hasSubject: !!result.subject, 
+                    hasBody: !!result.body,
+                    subjectLength: result.subject?.length || 0,
+                    bodyLength: result.body?.length || 0
+                });
             } else {
                 throw new Error('No JSON found in response');
             }
         } catch (parseError) {
+            console.log('⚠️ JSON parse failed:', parseError.message);
+            console.log('Raw text:', generatedText.substring(0, 200));
+            
             // Fallback: try to extract subject and body manually
-            console.log('JSON parse failed, attempting manual extraction');
             const lines = generatedText.split('\n');
             let subject = '';
             let body = '';
@@ -173,21 +184,39 @@ Return ONLY a valid JSON object with this exact format:
             }
 
             if (!subject && !body) {
-                // Last resort: use the whole response as body
+                // Last resort: Split the response into subject and body
+                const firstLine = generatedText.split('\n')[0];
                 result = {
-                    subject: 'Following up on our conversation',
-                    body: generatedText.replace(/```json|```/g, '').trim(),
+                    subject: firstLine.substring(0, 100) || 'Your Email Subject',
+                    body: generatedText,
                 };
             } else {
                 result = { subject, body: body.trim() };
             }
         }
+        
+        // Clean up the parsed result
+        if (result.subject) {
+            result.subject = result.subject.replace(/^["']|["']$/g, '').trim();
+        }
+        if (result.body) {
+            result.body = result.body.replace(/^["']|["']$/g, '').trim();
+        }
+
+        // Final validation
+        const finalSubject = result.subject || 'Your Email Subject';
+        const finalBody = result.body || 'Email content could not be generated.';
+        
+        console.log('📤 Sending response:', {
+            subject: finalSubject.substring(0, 50) + '...',
+            bodyLength: finalBody.length
+        });
 
         res.json({
             success: true,
             data: {
-                subject: result.subject || '',
-                body: result.body || '',
+                subject: finalSubject,
+                body: finalBody,
             },
         });
 
