@@ -9,68 +9,67 @@ const router = express.Router();
 
 // Helper function to clean and parse AI response
 const parseAIResponse = (rawText) => {
+    // Remove ALL markdown artifacts
+    let cleanText = rawText
+        .replace(/```json/gi, '')
+        .replace(/```/g, '')
+        .replace(/^\s*json\s*/i, '')
+        .trim();
+    
+    // Try to find and parse JSON
     try {
-        // Step 1: Remove all markdown code blocks
-        let cleanText = rawText
-            .replace(/```json\s*/gi, '')
-            .replace(/```\s*/g, '')
-            .trim();
+        // Find JSON object boundaries
+        const startIdx = cleanText.indexOf('{');
+        const endIdx = cleanText.lastIndexOf('}');
         
-        // Step 2: Extract JSON object
-        const jsonMatch = cleanText.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/s);
-        if (!jsonMatch) {
-            throw new Error('No JSON object found');
+        if (startIdx === -1 || endIdx === -1) {
+            throw new Error('No JSON found');
         }
         
-        // Step 3: Parse JSON
-        const parsed = JSON.parse(jsonMatch[0]);
+        const jsonStr = cleanText.substring(startIdx, endIdx + 1);
+        const parsed = JSON.parse(jsonStr);
         
-        // Step 4: Clean subject and body
-        const subject = (parsed.subject || '')
-            .replace(/^["'`]+|["'`]+$/g, '')
-            .replace(/\\n/g, ' ')
-            .trim();
-            
-        const body = (parsed.body || '')
-            .replace(/^["'`]+|["'`]+$/g, '')
-            .replace(/\\n/g, '\n')
-            .trim();
+        // Extract and clean subject
+        let subject = String(parsed.subject || parsed.Subject || '').trim();
+        subject = subject.replace(/^["'`]+|["'`]+$/g, '');
+        
+        // Extract and clean body - preserve newlines
+        let body = String(parsed.body || parsed.Body || '').trim();
+        body = body.replace(/^["'`]+|["'`]+$/g, '');
+        body = body.replace(/\\n/g, '\n'); // Convert \n to actual newlines
+        body = body.replace(/\\"/g, '"'); // Unescape quotes
+        
+        if (!subject || !body) {
+            throw new Error('Missing subject or body');
+        }
         
         return {
-            success: true,
-            subject: subject || 'Your Email Subject',
-            body: body || 'Email body could not be generated.'
+            subject: subject,
+            body: body
         };
-    } catch (error) {
-        // Fallback: Manual extraction
-        const lines = rawText.split('\n').filter(line => line.trim());
+        
+    } catch (parseError) {
+        // Manual extraction as last resort
         let subject = '';
         let body = '';
         
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            if (line.toLowerCase().includes('"subject"') || line.toLowerCase().includes('subject:')) {
-                // Extract subject value
-                const match = line.match(/[:"]\s*([^"]+)["]/);
-                if (match) subject = match[1];
-            } else if (line.toLowerCase().includes('"body"') || line.toLowerCase().includes('body:')) {
-                // Extract body value - collect all following lines
-                const match = line.match(/[:"]\s*(.+)/);
-                if (match) {
-                    body = match[1].replace(/^["']|["']$/g, '');
-                    // Collect continuation
-                    for (let j = i + 1; j < lines.length; j++) {
-                        if (lines[j].includes('}')) break;
-                        body += '\n' + lines[j].replace(/^["']|["']$/g, '');
-                    }
-                }
-            }
+        // Try to extract subject
+        const subjectMatch = cleanText.match(/"subject"\s*:\s*"([^"]+)"/i);
+        if (subjectMatch) {
+            subject = subjectMatch[1];
+        }
+        
+        // Try to extract body
+        const bodyMatch = cleanText.match(/"body"\s*:\s*"([\s\S]+?)"\s*}/i);
+        if (bodyMatch) {
+            body = bodyMatch[1]
+                .replace(/\\n/g, '\n')
+                .replace(/\\"/g, '"');
         }
         
         return {
-            success: false,
-            subject: subject || 'Your Email Subject',
-            body: body || rawText.substring(0, 500)
+            subject: subject || 'Email Subject',
+            body: body || cleanText.substring(0, 500)
         };
     }
 };
