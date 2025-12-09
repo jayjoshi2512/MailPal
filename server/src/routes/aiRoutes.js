@@ -8,6 +8,27 @@ dotenv.config();
 const router = express.Router();
 
 /**
+ * List available Gemini models
+ * GET /api/ai/models
+ */
+router.get('/models', authenticate, async (req, res) => {
+    try {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            return res.status(500).json({ success: false, error: 'API key not configured' });
+        }
+
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+        );
+        const data = await response.json();
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
  * Generate email template using Gemini AI
  * POST /api/ai/generate-template
  */
@@ -53,49 +74,56 @@ Requirements:
 Return ONLY a valid JSON object with this exact format:
 {"subject": "your subject line here", "body": "your email body here"}`;
 
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: systemPrompt }] }],
-                    generationConfig: {
-                        temperature: 0.7,
-                        maxOutputTokens: 1024,
-                    },
-                }),
-            }
-        );
+        // Try different model names (API changes frequently)
+        const modelNames = [
+            'gemini-1.5-flash-latest',
+            'gemini-1.5-flash',
+            'gemini-1.5-pro-latest',
+            'gemini-pro'
+        ];
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.error('Gemini API error:', {
-                status: response.status,
-                statusText: response.statusText,
-                error: errorData
-            });
-            
-            if (errorData.error?.status === 'PERMISSION_DENIED' || response.status === 403) {
-                return res.status(403).json({
-                    success: false,
-                    error: 'API Key invalid or expired. Please check your GEMINI_API_KEY in environment variables.',
-                });
-            }
+        let response;
+        let lastError;
 
-            if (errorData.error?.status === 'INVALID_ARGUMENT' || response.status === 400) {
-                return res.status(400).json({
-                    success: false,
-                    error: errorData.error?.message || 'Invalid request to AI service.',
-                });
-            }
+        for (const modelName of modelNames) {
+            try {
+                response = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: systemPrompt }] }],
+                            generationConfig: {
+                                temperature: 0.7,
+                                maxOutputTokens: 1024,
+                            },
+                        }),
+                    }
+                );
 
-            return res.status(500).json({
-                success: false,
-                error: errorData.error?.message || `Failed to generate template (${response.status}).`,
-            });
+                if (response.ok) {
+                    console.log(`✓ Successfully using model: ${modelName}`);
+                    break; // Success, exit loop
+                }
+
+                const errorData = await response.json().catch(() => ({}));
+                lastError = errorData;
+                console.log(`✗ Model ${modelName} failed:`, errorData.error?.message);
+            } catch (err) {
+                console.log(`✗ Model ${modelName} error:`, err.message);
+                lastError = err;
+            }
         }
 
+        if (!response || !response.ok) {
+            console.error('All models failed. Last error:', lastError);
+            return res.status(500).json({
+                success: false,
+                error: 'All AI models failed. Please check your API key at https://aistudio.google.com/app/apikey'
+            });
+        }
+            
         const data = await response.json();
         const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
