@@ -53,6 +53,7 @@ router.post('/generate-template', authenticate, async (req, res) => {
         }
 
         console.log('🔑 API Key present:', apiKey ? `${apiKey.substring(0, 10)}...` : 'MISSING');
+        console.log('📝 Request:', { prompt: prompt.substring(0, 50), tone, variablesCount: variables?.length || 0 });
 
         // Build the AI prompt
         const variablesList = variables?.length > 0 
@@ -120,7 +121,7 @@ Return ONLY a valid JSON object with this exact format:
         }
 
         if (!response || !response.ok) {
-            console.error('All models failed. Last error:', lastError);
+            console.error('❌ All models failed. Last error:', lastError);
             return res.status(500).json({
                 success: false,
                 error: 'All AI models failed. Please check your API key at https://aistudio.google.com/app/apikey'
@@ -128,14 +129,19 @@ Return ONLY a valid JSON object with this exact format:
         }
             
         const data = await response.json();
+        console.log('📥 AI Response structure:', JSON.stringify(data, null, 2));
+        
         const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (!generatedText) {
+            console.error('❌ No text in response. Full response:', JSON.stringify(data, null, 2));
             return res.status(500).json({
                 success: false,
-                error: 'No response from AI service',
+                error: 'No response from AI service. Response structure: ' + JSON.stringify(data.candidates?.[0] || 'No candidates'),
             });
         }
+        
+        console.log('✅ Generated text length:', generatedText.length);
 
         // Parse the JSON response
         let result;
@@ -186,10 +192,11 @@ Return ONLY a valid JSON object with this exact format:
         });
 
     } catch (error) {
-        console.error('AI generation error:', error);
+        console.error('❌ AI generation error:', error.message);
+        console.error('❌ Stack:', error.stack);
         res.status(500).json({
             success: false,
-            error: 'Failed to generate template. Please try again.',
+            error: `Failed to generate template: ${error.message}`,
         });
     }
 });
