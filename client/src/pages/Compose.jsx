@@ -19,7 +19,7 @@ import SendProgressCard from '@/components/CampaignDetail/SendProgressCard';
 import { useEmailRecipients, useAttachments } from '@/components/Compose/useComposeForm';
 import { formatFileSize } from '@/components/Compose/emailUtils';
 import { emailAPI, aiAPI } from '@/services/api';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/components/ui/dialog';
 
 /**
  * Enhanced Compose Page - Production-ready email composition
@@ -467,6 +467,9 @@ const ComposeEnhanced = () => {
                                                 <i className="ri-magic-line text-blue-600"></i>
                                                 Write with AI
                                             </DialogTitle>
+                                            <DialogDescription>
+                                                Generate email content using AI based on your prompt and tone preferences.
+                                            </DialogDescription>
                                         </DialogHeader>
                                         <div className="space-y-4 py-4">
                                             <div className="space-y-2">

@@ -54,7 +54,7 @@ Return ONLY a valid JSON object with this exact format:
 {"subject": "your subject line here", "body": "your email body here"}`;
 
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -70,18 +70,29 @@ Return ONLY a valid JSON object with this exact format:
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            console.error('Gemini API error:', JSON.stringify(errorData, null, 2));
+            console.error('Gemini API error:', {
+                status: response.status,
+                statusText: response.statusText,
+                error: errorData
+            });
             
-            if (errorData.error?.status === 'PERMISSION_DENIED') {
+            if (errorData.error?.status === 'PERMISSION_DENIED' || response.status === 403) {
                 return res.status(403).json({
                     success: false,
-                    error: 'API Key invalid or expired. Please check your Google AI Studio key.',
+                    error: 'API Key invalid or expired. Please check your GEMINI_API_KEY in environment variables.',
+                });
+            }
+
+            if (errorData.error?.status === 'INVALID_ARGUMENT' || response.status === 400) {
+                return res.status(400).json({
+                    success: false,
+                    error: errorData.error?.message || 'Invalid request to AI service.',
                 });
             }
 
             return res.status(500).json({
                 success: false,
-                error: errorData.error?.message || 'Failed to generate template.',
+                error: errorData.error?.message || `Failed to generate template (${response.status}).`,
             });
         }
 
